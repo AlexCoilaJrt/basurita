@@ -2,6 +2,7 @@
 Detector de residuos en tiempo real con la webcam - NTP 900.058 (7 colores)
 Uso:
     python src/detector_residuos.py                      (usa modelos/best.pt o, si no existe, YOLO-World)
+    Con YOLO-World, si existe modelos/clasificador.pt, el clasificador decide el color de cada objeto.
     python src/detector_residuos.py --modelo otro.pt
 Teclas:
     q / ESC  -> salir
@@ -19,6 +20,8 @@ from ultralytics import YOLO, YOLOWorld
 RAIZ = Path(__file__).resolve().parent.parent
 MODELO_DEFECTO = RAIZ / "modelos" / "best.pt"
 MODELO_WORLD = RAIZ / "modelos" / "yolov8s-worldv2.pt"
+MODELO_CLASIFICADOR = RAIZ / "modelos" / "clasificador.pt"
+MAX_RECORTES = 5  # objetos por cuadro que revisa el clasificador (CPU)
 DIR_CAPTURAS = RAIZ / "capturas"
 
 # Colores en formato BGR (OpenCV)
@@ -150,7 +153,52 @@ def clasificar(objeto):
     """Devuelve (nombre a mostrar, clase NTP) o None si no es un residuo."""
     if objeto in COLORES:  # modelo entrenado: ya es una de las 7 clases
         return ETIQUETAS[objeto].split(" - ")[1], objeto
+    for clase in COLORES:  # clasificador entrenado con carpetas "Azul", "Rojo", ...
+        if clase.split("_")[0] == objeto.lower():
+            return ETIQUETAS[clase].split(" - ")[1], clase
     return MAPEO_WORLD.get(objeto) or MAPEO_COCO.get(objeto)
+
+
+def reclasificar(frame, detecciones, clasificador, conf_clas):
+    """El clasificador decide el color mirando el recorte de cada objeto."""
+    h, w = frame.shape[:2]
+    validas, recortes = [], []
+    for d in detecciones:
+        x1, y1, x2, y2 = d[:4]
+        mx, my = int((x2 - x1) * 0.1), int((y2 - y1) * 0.1)  # margen del 10%
+        recorte = frame[max(0, y1 - my):min(h, y2 + my), max(0, x1 - mx):min(w, x2 + mx)]
+        if recorte.size:
+            validas.append(d)
+            recortes.append(recorte)
+    if not recortes:
+        return []
+
+    salida = []
+    for d, r in zip(validas, clasificador.predict(recortes, imgsz=224, device="cpu", verbose=False)):
+        resultado = clasificar(r.names[r.probs.top1])
+        conf = float(r.probs.top1conf)
+        if resultado is None or conf < conf_clas:
+            continue
+        d[4], d[5], d[6] = resultado[0], resultado[1], conf
+        salida.append(d)
+    return salida
+
+
+def detectar(frame, modelo, conf_min, imgsz, clasificador=None, conf_clas=0.4):
+    """Devuelve [(x1, y1, x2, y2, nombre, clase, conf, contorno)] de los residuos del cuadro."""
+    r = modelo.predict(frame, imgsz=imgsz, conf=conf_min, device="cpu", verbose=False,
+                       agnostic_nms=clasificador is not None)[0]
+    contornos = r.masks.xy if r.masks is not None else [None] * len(r.boxes)
+    detecciones = []
+    for caja, contorno in zip(r.boxes, contornos):
+        resultado = clasificar(r.names[int(caja.cls[0])])
+        if resultado is None:  # personas, sillas, etc. no son residuos
+            continue
+        x1, y1, x2, y2 = map(int, caja.xyxy[0])
+        detecciones.append([x1, y1, x2, y2, *resultado, float(caja.conf[0]), contorno])
+    if clasificador is not None:
+        detecciones = reclasificar(frame, detecciones[:MAX_RECORTES], clasificador, conf_clas)
+    return [tuple(d) for d in detecciones]
 
 
 def contraste(clase):
@@ -240,6 +288,10 @@ def main():
     ap.add_argument("--conf", type=float, default=None,
                     help="confianza minima (0.45; 0.15 con YOLO-World)")
     ap.add_argument("--imgsz", type=int, default=480, help="tamano de inferencia (416/480/640)")
+    ap.add_argument("--clasificador", default=None,
+                    help="clasificador de color para YOLO-World (por defecto modelos/clasificador.pt)")
+    ap.add_argument("--conf-clas", type=float, default=0.4,
+                    help="confianza minima del clasificador de color")
     args = ap.parse_args()
 
     if args.modelo:
@@ -257,7 +309,16 @@ def main():
     else:
         modelo = YOLO(str(ruta))
     conf_min = args.conf if args.conf is not None else (0.15 if es_world else 0.45)
-    print(f"Modelo: {ruta.name} | confianza minima: {conf_min}")
+
+    # Con YOLO-World, si hay clasificador: YOLO-World ubica y el clasificador decide el color
+    clasificador = None
+    ruta_clas = Path(args.clasificador) if args.clasificador else MODELO_CLASIFICADOR
+    if args.clasificador and not ruta_clas.exists():
+        raise SystemExit(f"No se encontro el clasificador: {ruta_clas}")
+    if es_world and ruta_clas.exists():
+        clasificador = YOLO(str(ruta_clas))
+    print(f"Modelo: {ruta.name} | confianza minima: {conf_min}"
+          + (f" | color: {ruta_clas.name}" if clasificador else ""))
     cam = cv2.VideoCapture(args.camara)
     if not cam.isOpened():
         raise SystemExit("No se pudo abrir la camara. Revisa el permiso de Camara para la Terminal.")
@@ -272,23 +333,9 @@ def main():
         if not ok:
             break
 
-        r = modelo.predict(frame, imgsz=args.imgsz, conf=conf_min,
-                           device="cpu", verbose=False)[0]
-        conteo = Counter()
-        principal = None
-        detecciones = []
-        contornos = r.masks.xy if r.masks is not None else [None] * len(r.boxes)
-        for caja, contorno in zip(r.boxes, contornos):
-            resultado = clasificar(r.names[int(caja.cls[0])])
-            if resultado is None:  # personas, sillas, etc. no son residuos
-                continue
-            nombre, clase = resultado
-            x1, y1, x2, y2 = map(int, caja.xyxy[0])
-            conf = float(caja.conf[0])
-            conteo[clase] += 1
-            detecciones.append((x1, y1, x2, y2, nombre, clase, conf, contorno))
-            if principal is None or conf > principal[2]:
-                principal = (nombre, clase, conf)
+        detecciones = detectar(frame, modelo, conf_min, args.imgsz, clasificador, args.conf_clas)
+        conteo = Counter(d[5] for d in detecciones)
+        principal = max(detecciones, key=lambda d: d[6])[4:7] if detecciones else None
 
         dibujar_mascaras(frame, detecciones)
         for x1, y1, x2, y2, nombre, clase, conf, _ in detecciones:

@@ -17,11 +17,13 @@ Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Per
 
 ```
 detecciondebasura/
+├── notebooks/dataset_ntp900058_splits.ipynb        # arma el dataset de clasificación en el Drive
+├── notebooks/entrenamiento_clasificador.ipynb      # clasificador de color (Colab)
 ├── notebooks/entrenamiento_seg_drive.ipynb          # segmentación con tus fotos del Drive + TACO (Colab)
 ├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow (Colab)
 ├── src/datos_residuos.py                            # etiquetado automático, división y TACO
 ├── src/detector_residuos.py                         # detector en vivo con la webcam (Mac, CPU)
-├── modelos/        # aquí va best.pt (descargado de Colab)
+├── modelos/        # best.pt y/o clasificador.pt (descargados de Colab)
 ├── resultados/     # zip con métricas/gráficos del entrenamiento
 ├── capturas/       # fotos guardadas con la tecla 's'
 ├── datos/webcam/   # fotos propias para crear tu dataset en Roboflow
@@ -29,6 +31,15 @@ detecciondebasura/
 ```
 
 ## Flujo de trabajo
+
+### Rápido: clasificador de color con `data basurita` (Drive)
+1. `notebooks/dataset_ntp900058_splits.ipynb` arma `MyDrive/data basurita/splits` y `dataset_ntp900058.zip`
+   (Garbage Dataset V2 + TrashBox + tus fotos de `data basurita/<Color>/`).
+2. `notebooks/entrenamiento_clasificador.ipynb` entrena **YOLO11n-cls** en 2 etapas (base congelada + ajuste fino)
+   y guarda `clasificador.pt` en `MyDrive/data basurita/modelos/`.
+3. Copia `clasificador.pt` a `modelos/`. El detector queda así: **YOLO-World ubica el objeto y el clasificador decide el color**.
+
+Los datos se quedan en el Drive; en este proyecto solo van el código y los modelos `.pt`.
 
 ### Recomendado: segmentación con tus fotos del Drive
 `notebooks/entrenamiento_seg_drive.ipynb` (usa `src/datos_residuos.py`):
