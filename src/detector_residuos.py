@@ -1,7 +1,7 @@
 """
 Detector de residuos en tiempo real con la webcam - NTP 900.058 (7 colores)
 Uso:
-    python src/detector_residuos.py                      (usa modelos/best.pt)
+    python src/detector_residuos.py                      (usa modelos/best.pt o, si no existe, YOLO-World)
     python src/detector_residuos.py --modelo otro.pt
 Teclas:
     q / ESC  -> salir
@@ -14,10 +14,11 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
-from ultralytics import YOLO
+from ultralytics import YOLO, YOLOWorld
 
 RAIZ = Path(__file__).resolve().parent.parent
 MODELO_DEFECTO = RAIZ / "modelos" / "best.pt"
+MODELO_WORLD = RAIZ / "modelos" / "yolov8s-worldv2.pt"
 DIR_CAPTURAS = RAIZ / "capturas"
 
 # Colores en formato BGR (OpenCV)
@@ -44,19 +45,118 @@ ETIQUETAS = {
 # Colores claros llevan texto/borde oscuro; los oscuros, texto/borde blanco
 CLAROS = {"amarillo_metales", "blanco_plasticos", "gris_vidrio"}
 
+# Modelo generico (yolo11n.pt, 80 clases COCO): objeto -> (nombre, color NTP).
+# Es una aproximacion: no distingue material (botella de vidrio sale como plastico).
+# Con best.pt entrenado no se usa, porque el modelo ya devuelve las 7 clases.
+MAPEO_COCO = {
+    "bottle": ("Botella", "blanco_plasticos"),
+    "cup": ("Vaso", "blanco_plasticos"),
+    "toothbrush": ("Cepillo de dientes", "blanco_plasticos"),
+    "wine glass": ("Copa", "gris_vidrio"),
+    "vase": ("Florero", "gris_vidrio"),
+    "fork": ("Tenedor", "amarillo_metales"),
+    "knife": ("Cuchillo", "amarillo_metales"),
+    "spoon": ("Cuchara", "amarillo_metales"),
+    "scissors": ("Tijera", "amarillo_metales"),
+    "book": ("Libro / papel", "azul_papel_carton"),
+    "banana": ("Platano", "marron_organicos"),
+    "apple": ("Manzana", "marron_organicos"),
+    "orange": ("Naranja", "marron_organicos"),
+    "broccoli": ("Brocoli", "marron_organicos"),
+    "carrot": ("Zanahoria", "marron_organicos"),
+    "sandwich": ("Sandwich", "marron_organicos"),
+    "hot dog": ("Hot dog", "marron_organicos"),
+    "pizza": ("Pizza", "marron_organicos"),
+    "donut": ("Dona", "marron_organicos"),
+    "cake": ("Torta", "marron_organicos"),
+    "cell phone": ("Celular", "rojo_peligrosos"),
+    "laptop": ("Laptop", "rojo_peligrosos"),
+    "mouse": ("Mouse", "rojo_peligrosos"),
+    "remote": ("Control remoto", "rojo_peligrosos"),
+    "keyboard": ("Teclado", "rojo_peligrosos"),
+    "hair drier": ("Secadora", "rojo_peligrosos"),
+    "handbag": ("Bolso", "negro_generales"),
+    "backpack": ("Mochila", "negro_generales"),
+    "umbrella": ("Paraguas", "negro_generales"),
+    "teddy bear": ("Peluche", "negro_generales"),
+}
+
+
+# YOLO-World (sin entrenar): detecta lo que se le describe en texto (en ingles).
+# Agrega o quita lineas para ajustar que residuos busca.
+MAPEO_WORLD = {
+    # Plasticos
+    "plastic bottle": ("Botella plastica", "blanco_plasticos"),
+    "plastic cup": ("Vaso plastico", "blanco_plasticos"),
+    "plastic bag": ("Bolsa plastica", "blanco_plasticos"),
+    "plastic container": ("Envase plastico", "blanco_plasticos"),
+    "plastic straw": ("Sorbete", "blanco_plasticos"),
+    "plastic bottle cap": ("Tapa plastica", "blanco_plasticos"),
+    # Vidrio
+    "glass bottle": ("Botella de vidrio", "gris_vidrio"),
+    "glass jar": ("Frasco de vidrio", "gris_vidrio"),
+    "drinking glass": ("Vaso de vidrio", "gris_vidrio"),
+    # Metales
+    "aluminum can": ("Lata de aluminio", "amarillo_metales"),
+    "tin can": ("Lata de conserva", "amarillo_metales"),
+    "aluminum foil": ("Papel aluminio", "amarillo_metales"),
+    "metal spoon": ("Cubierto de metal", "amarillo_metales"),
+    # Papel y carton
+    "cardboard box": ("Caja de carton", "azul_papel_carton"),
+    "sheet of paper": ("Hoja de papel", "azul_papel_carton"),
+    "newspaper": ("Periodico", "azul_papel_carton"),
+    "notebook": ("Cuaderno", "azul_papel_carton"),
+    "paper bag": ("Bolsa de papel", "azul_papel_carton"),
+    "egg carton": ("Caja de huevos", "azul_papel_carton"),
+    # Organicos
+    "banana": ("Platano", "marron_organicos"),
+    "banana peel": ("Cascara de platano", "marron_organicos"),
+    "apple": ("Manzana", "marron_organicos"),
+    "orange": ("Naranja", "marron_organicos"),
+    "fruit peel": ("Cascara de fruta", "marron_organicos"),
+    "food leftovers": ("Restos de comida", "marron_organicos"),
+    "vegetable": ("Verdura", "marron_organicos"),
+    "eggshell": ("Cascara de huevo", "marron_organicos"),
+    "dry leaves": ("Hojas secas", "marron_organicos"),
+    # Peligrosos
+    "battery": ("Pila / bateria", "rojo_peligrosos"),
+    "cell phone": ("Celular", "rojo_peligrosos"),
+    "syringe": ("Jeringa", "rojo_peligrosos"),
+    "medicine pills": ("Medicamentos", "rojo_peligrosos"),
+    "face mask": ("Mascarilla", "rojo_peligrosos"),
+    "light bulb": ("Foco", "rojo_peligrosos"),
+    "aerosol spray can": ("Aerosol", "rojo_peligrosos"),
+    "computer mouse": ("Mouse", "rojo_peligrosos"),
+    "charger cable": ("Cargador / cable", "rojo_peligrosos"),
+    # Generales (no aprovechables)
+    "cigarette butt": ("Colilla", "negro_generales"),
+    "used tissue": ("Papel higienico / servilleta", "negro_generales"),
+    "styrofoam container": ("Tecnopor", "negro_generales"),
+    "chip bag": ("Envoltura de snack", "negro_generales"),
+    "candy wrapper": ("Envoltura de golosina", "negro_generales"),
+    "disposable paper cup": ("Vaso descartable de papel", "negro_generales"),
+}
+
+
+def clasificar(objeto):
+    """Devuelve (nombre a mostrar, clase NTP) o None si no es un residuo."""
+    if objeto in COLORES:  # modelo entrenado: ya es una de las 7 clases
+        return ETIQUETAS[objeto].split(" - ")[1], objeto
+    return MAPEO_WORLD.get(objeto) or MAPEO_COCO.get(objeto)
+
 
 def contraste(clase):
     return (0, 0, 0) if clase in CLAROS else (255, 255, 255)
 
 
-def dibujar_caja(frame, x1, y1, x2, y2, clase, conf):
+def dibujar_caja(frame, x1, y1, x2, y2, nombre, clase, conf):
     color = COLORES.get(clase, (0, 255, 0))
     borde = contraste(clase)
     # Doble borde para que se vea sobre cualquier fondo
     cv2.rectangle(frame, (x1, y1), (x2, y2), borde, 5)
     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 3)
 
-    texto = f"{ETIQUETAS.get(clase, clase)} {conf:.0%}"
+    texto = f"{nombre} -> {ETIQUETAS[clase].split(' - ')[0]} {conf:.0%}"
     fuente = cv2.FONT_HERSHEY_SIMPLEX
     (tw, th), _ = cv2.getTextSize(texto, fuente, 0.6, 2)
     y_txt = max(y1, th + 10)
@@ -80,22 +180,63 @@ def dibujar_leyenda(frame, conteo, fps):
         cv2.rectangle(frame, (x + 8, yy - 12), (x + 24, yy + 2), (255, 255, 255), 1)
         n = conteo.get(clase, 0)
         txt = ETIQUETAS[clase] + (f"  x{n}" if n else "")
+        if n:  # resalta los colores detectados en este cuadro
+            cv2.putText(frame, ">", (x - 2, yy), cv2.FONT_HERSHEY_SIMPLEX, 0.5,
+                        (0, 255, 255), 2, cv2.LINE_AA)
         cv2.putText(frame, txt, (x + 32, yy), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
-                    (255, 255, 255), 1, cv2.LINE_AA)
+                    (255, 255, 255), 2 if n else 1, cv2.LINE_AA)
+
+
+def dibujar_veredicto(frame, principal):
+    """Barra inferior grande con el tacho donde va el objeto mas seguro."""
+    h, w = frame.shape[:2]
+    alto = 90
+    fuente = cv2.FONT_HERSHEY_SIMPLEX
+    if principal is None:
+        panel = frame.copy()
+        cv2.rectangle(panel, (0, h - alto), (w, h), (40, 40, 40), -1)
+        cv2.addWeighted(panel, 0.7, frame, 0.3, 0, frame)
+        cv2.putText(frame, "Acerca un residuo a la camara...", (20, h - 35),
+                    fuente, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+        return
+
+    nombre, clase, conf = principal
+    color, texto_color = COLORES[clase], contraste(clase)
+    tacho, categoria = ETIQUETAS[clase].split(" - ")
+    cv2.rectangle(frame, (0, h - alto), (w, h), color, -1)
+    cv2.rectangle(frame, (0, h - alto), (w, h), texto_color, 2)
+    cv2.putText(frame, f"TACHO {tacho}", (20, h - 45), fuente, 1.4,
+                texto_color, 3, cv2.LINE_AA)
+    cv2.putText(frame, f"{nombre}  |  {categoria}  |  {conf:.0%}", (20, h - 14),
+                fuente, 0.8, texto_color, 2, cv2.LINE_AA)
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--modelo", default=str(MODELO_DEFECTO), help="ruta al modelo entrenado")
+    ap.add_argument("--modelo", default=None,
+                    help="ruta al modelo (por defecto modelos/best.pt o, si no existe, YOLO-World)")
     ap.add_argument("--camara", type=int, default=0, help="indice de la camara")
-    ap.add_argument("--conf", type=float, default=0.45, help="confianza minima")
+    ap.add_argument("--conf", type=float, default=None,
+                    help="confianza minima (0.45; 0.15 con YOLO-World)")
     ap.add_argument("--imgsz", type=int, default=480, help="tamano de inferencia (416/480/640)")
     args = ap.parse_args()
 
-    if not Path(args.modelo).exists():
-        raise SystemExit(f"No se encontro el modelo: {args.modelo}\n"
+    if args.modelo:
+        ruta = Path(args.modelo)
+    else:
+        ruta = MODELO_DEFECTO if MODELO_DEFECTO.exists() else MODELO_WORLD
+    if not ruta.exists():
+        raise SystemExit(f"No se encontro el modelo: {ruta}\n"
                          "Entrena en Colab (notebooks/) y copia best.pt a modelos/.")
-    modelo = YOLO(args.modelo)
+
+    es_world = "world" in ruta.name
+    if es_world:
+        modelo = YOLOWorld(str(ruta))
+        modelo.set_classes(list(MAPEO_WORLD))
+    else:
+        modelo = YOLO(str(ruta))
+    conf_min = args.conf if args.conf is not None else (0.15 if es_world else 0.45)
+    print(f"Modelo: {ruta.name} | confianza minima: {conf_min}")
     cam = cv2.VideoCapture(args.camara)
     if not cam.isOpened():
         raise SystemExit("No se pudo abrir la camara. Revisa el permiso de Camara para la Terminal.")
@@ -110,20 +251,27 @@ def main():
         if not ok:
             break
 
-        r = modelo.predict(frame, imgsz=args.imgsz, conf=args.conf,
+        r = modelo.predict(frame, imgsz=args.imgsz, conf=conf_min,
                            device="cpu", verbose=False)[0]
         conteo = Counter()
+        principal = None
         for caja in r.boxes:
+            resultado = clasificar(r.names[int(caja.cls[0])])
+            if resultado is None:  # personas, sillas, etc. no son residuos
+                continue
+            nombre, clase = resultado
             x1, y1, x2, y2 = map(int, caja.xyxy[0])
-            clase = r.names[int(caja.cls[0])]
             conf = float(caja.conf[0])
             conteo[clase] += 1
-            dibujar_caja(frame, x1, y1, x2, y2, clase, conf)
+            dibujar_caja(frame, x1, y1, x2, y2, nombre, clase, conf)
+            if principal is None or conf > principal[2]:
+                principal = (nombre, clase, conf)
 
         t_now = time.time()
         fps = 0.9 * fps + 0.1 * (1.0 / max(t_now - t_prev, 1e-6))
         t_prev = t_now
         dibujar_leyenda(frame, conteo, fps)
+        dibujar_veredicto(frame, principal)
 
         cv2.imshow("Detector de residuos - NTP 900.058", frame)
         tecla = cv2.waitKey(1) & 0xFF

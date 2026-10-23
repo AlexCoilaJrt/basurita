@@ -5,3 +5,5 @@ torchvision==0.17.2
 numpy<2
 opencv-python==4.10.0.84
 ultralytics>=8.3,<8.4
+# YOLO-World (deteccion por texto, sin entrenar)
+clip @ git+https://github.com/ultralytics/CLIP.git

@@ -38,6 +38,10 @@ detecciondebasura/
 - `best.pt` → `modelos/best.pt`
 - `resultados_residuos7.zip` → `resultados/`
 
+> **Sin `best.pt` también funciona:** el detector usa **YOLO-World** (`modelos/yolov8s-worldv2.pt`,
+> se descarga solo), que busca ~43 residuos descritos en texto en `MAPEO_WORLD`
+> (`src/detector_residuos.py`). Es una aproximación; el modelo entrenado es más preciso.
+
 ### 3. Ejecutar el detector (Mac Intel)
 ```bash
 python3.11 -m venv .venv
@@ -45,7 +49,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python src/detector_residuos.py
 ```
-Opciones: `--camara 1`, `--conf 0.5`, `--imgsz 416` (más rápido) o `640` (más preciso).
+Opciones: `--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso).
+La barra inferior muestra en qué tacho va el objeto detectado con mayor confianza.
 Teclas: `q`/`ESC` salir, `s` guardar captura.
 
 > Si la cámara no abre: *Ajustes del Sistema → Privacidad y seguridad → Cámara* y habilita la Terminal / VS Code.
