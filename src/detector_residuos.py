@@ -92,6 +92,14 @@ MAPEO_WORLD = {
     "plastic container": ("Envase plastico", "blanco_plasticos"),
     "plastic straw": ("Sorbete", "blanco_plasticos"),
     "plastic bottle cap": ("Tapa plastica", "blanco_plasticos"),
+    "plastic wrapper": ("Envoltura plastica", "blanco_plasticos"),
+    "plastic packaging": ("Empaque plastico", "blanco_plasticos"),
+    "transparent plastic": ("Plastico transparente", "blanco_plasticos"),
+    "plastic food container": ("Taper / envase de comida", "blanco_plasticos"),
+    "plastic tray": ("Bandeja plastica", "blanco_plasticos"),
+    "plastic lid": ("Tapa plastica", "blanco_plasticos"),
+    "yogurt cup": ("Envase de yogurt", "blanco_plasticos"),
+    "shampoo bottle": ("Frasco de shampoo", "blanco_plasticos"),
     # Vidrio
     "glass bottle": ("Botella de vidrio", "gris_vidrio"),
     "glass jar": ("Frasco de vidrio", "gris_vidrio"),
@@ -103,7 +111,7 @@ MAPEO_WORLD = {
     "metal spoon": ("Cubierto de metal", "amarillo_metales"),
     # Papel y carton
     "cardboard box": ("Caja de carton", "azul_papel_carton"),
-    "sheet of paper": ("Hoja de papel", "azul_papel_carton"),
+    "printed paper document": ("Hoja de papel", "azul_papel_carton"),
     "newspaper": ("Periodico", "azul_papel_carton"),
     "notebook": ("Cuaderno", "azul_papel_carton"),
     "paper bag": ("Bolsa de papel", "azul_papel_carton"),
@@ -163,6 +171,19 @@ def dibujar_caja(frame, x1, y1, x2, y2, nombre, clase, conf):
     cv2.rectangle(frame, (x1, y_txt - th - 10), (x1 + tw + 10, y_txt), color, -1)
     cv2.rectangle(frame, (x1, y_txt - th - 10), (x1 + tw + 10, y_txt), borde, 1)
     cv2.putText(frame, texto, (x1 + 5, y_txt - 6), fuente, 0.6, borde, 2, cv2.LINE_AA)
+
+
+def dibujar_mascaras(frame, detecciones):
+    """Rellena el contorno de cada residuo con el color de su tacho (modelos -seg)."""
+    con_contorno = [(clase, c) for *_, clase, _, c in detecciones if c is not None and len(c) >= 3]
+    if not con_contorno:
+        return
+    capa = frame.copy()
+    for clase, contorno in con_contorno:
+        cv2.fillPoly(capa, [contorno.astype("int32")], COLORES[clase])
+    cv2.addWeighted(capa, 0.45, frame, 0.55, 0, frame)
+    for clase, contorno in con_contorno:
+        cv2.polylines(frame, [contorno.astype("int32")], True, contraste(clase), 2, cv2.LINE_AA)
 
 
 def dibujar_leyenda(frame, conteo, fps):
@@ -255,7 +276,9 @@ def main():
                            device="cpu", verbose=False)[0]
         conteo = Counter()
         principal = None
-        for caja in r.boxes:
+        detecciones = []
+        contornos = r.masks.xy if r.masks is not None else [None] * len(r.boxes)
+        for caja, contorno in zip(r.boxes, contornos):
             resultado = clasificar(r.names[int(caja.cls[0])])
             if resultado is None:  # personas, sillas, etc. no son residuos
                 continue
@@ -263,9 +286,13 @@ def main():
             x1, y1, x2, y2 = map(int, caja.xyxy[0])
             conf = float(caja.conf[0])
             conteo[clase] += 1
-            dibujar_caja(frame, x1, y1, x2, y2, nombre, clase, conf)
+            detecciones.append((x1, y1, x2, y2, nombre, clase, conf, contorno))
             if principal is None or conf > principal[2]:
                 principal = (nombre, clase, conf)
+
+        dibujar_mascaras(frame, detecciones)
+        for x1, y1, x2, y2, nombre, clase, conf, _ in detecciones:
+            dibujar_caja(frame, x1, y1, x2, y2, nombre, clase, conf)
 
         t_now = time.time()
         fps = 0.9 * fps + 0.1 * (1.0 / max(t_now - t_prev, 1e-6))
