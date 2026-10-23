@@ -1,0 +1,17 @@
+# Entorno
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+
+# Modelos y salidas pesadas (se guardan fuera de git)
+modelos/*.pt
+capturas/*
+resultados/*
+datos/**/*.jpg
+datos/**/*.png
+!**/.gitkeep
+
+# Secretos
+.env
