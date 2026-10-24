@@ -1,7 +1,29 @@
 # Detector de residuos – NTP 900.058 (7 colores)
 
-Detección de residuos en tiempo real con la webcam usando **YOLO11n** (Ultralytics).
-Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Perú):
+Detección de residuos en tiempo real con la webcam (Ultralytics).
+Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Perú).
+
+**Cómo funciona:** YOLO-World (preentrenado, sin modificar) **ubica** cada objeto y nuestro
+clasificador **YOLO11n-cls** (`modelos/clasificador.pt`, entrenado con `data basurita`) **decide el color**.
+Si YOLO-World no encuentra nada, el clasificador mira el centro de la imagen (plan B).
+
+| Color | Acierto en test |
+|---|---|
+| Marrón | 99,0% |
+| Azul | 94,0% |
+| Gris | 92,0% |
+| Amarillo / Negro | 91,3% |
+| Rojo | 85,7% |
+| Blanco | 82,7% |
+
+Acierto general en val: **90,8%** (top-1). El dataset se dividió foto por foto al azar, así que estos
+valores pueden ser algo optimistas respecto a la cámara real.
+
+Documentación detallada en `docs/`:
+- `Explicacion_detector_residuos.docx`: todo el proyecto, el entrenamiento (optimizadores, pérdida, aumento de datos, épocas) y los resultados.
+- `Preentrenado_y_nuestro_entrenamiento.docx`: qué estaba entrenado, qué entrenamos nosotros y cómo mejorar con más datos.
+
+## Los 7 colores
 
 | Color | Clase | Residuos |
 |---|---|---|
@@ -17,22 +39,23 @@ Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Per
 
 ```
 detecciondebasura/
-├── notebooks/dataset_ntp900058_splits.ipynb        # arma el dataset de clasificación en el Drive
-├── notebooks/entrenamiento_clasificador.ipynb      # clasificador de color (Colab)
-├── notebooks/entrenamiento_seg_drive.ipynb          # segmentación con tus fotos del Drive + TACO (Colab)
-├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow (Colab)
-├── src/datos_residuos.py                            # etiquetado automático, división y TACO
-├── src/detector_residuos.py                         # detector en vivo con la webcam (Mac, CPU)
-├── modelos/        # best.pt y/o clasificador.pt (descargados de Colab)
-├── resultados/     # zip con métricas/gráficos del entrenamiento
+├── src/detector_residuos.py                         # detector en vivo con la webcam (Mac, CPU)      [usado]
+├── notebooks/dataset_ntp900058_splits.ipynb        # arma el dataset de clasificación en el Drive  [usado]
+├── notebooks/entrenamiento_clasificador.ipynb      # entrena el clasificador de color (Colab)      [usado]
+├── notebooks/entrenamiento_seg_drive.ipynb          # segmentación con fotos del Drive + TACO        [alternativa]
+├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow           [alternativa]
+├── src/datos_residuos.py                            # herramientas del notebook de segmentación      [alternativa]
+├── docs/           # documentación en Word
+├── modelos/        # clasificador.pt (en git, ~3 MB); yolov8s-worldv2.pt se descarga solo
+├── datos/          # recolectadas/<Color>/ (tecla 'c') y pruebas/ (fuera de git)
 ├── capturas/       # fotos guardadas con la tecla 's'
-├── datos/webcam/   # fotos propias para crear tu dataset en Roboflow
+├── resultados/     # métricas y copias de Colab (fuera de git)
 └── requirements.txt
 ```
 
 ## Flujo de trabajo
 
-### Rápido: clasificador de color con `data basurita` (Drive)
+### Usado: clasificador de color con `data basurita` (Drive)
 1. `notebooks/dataset_ntp900058_splits.ipynb` arma `MyDrive/data basurita/splits` y `dataset_ntp900058.zip`
    (Garbage Dataset V2 + TrashBox + tus fotos de `data basurita/<Color>/`).
 2. `notebooks/entrenamiento_clasificador.ipynb` entrena **YOLO11n-cls** en 2 etapas (base congelada + ajuste fino)
@@ -41,7 +64,7 @@ detecciondebasura/
 
 Los datos se quedan en el Drive; en este proyecto solo van el código y los modelos `.pt`.
 
-### Recomendado: segmentación con tus fotos del Drive
+### Alternativa (no usada aún): segmentación con tus fotos del Drive
 `notebooks/entrenamiento_seg_drive.ipynb` (usa `src/datos_residuos.py`):
 1. En el Drive, crea `MyDrive/Residuos/<color>/<objeto>/fotos...` con los 7 nombres de clase de la tabla.
 2. Abre el notebook en Colab con GPU T4 y ejecútalo en orden:
@@ -79,6 +102,14 @@ python src/detector_residuos.py
 Opciones: `--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso).
 La barra inferior muestra en qué tacho va el objeto detectado con mayor confianza.
 Teclas: `q`/`ESC` salir, `s` guardar captura.
+
+### Recolectar fotos para mejorar el clasificador
+```bash
+python src/detector_residuos.py --recolectar Blanco
+```
+Con la tecla `c` se guarda la foto **sin dibujos** en `datos/recolectadas/Blanco/`. Súbelas a
+`data basurita/Blanco/` en el Drive y vuelve a ejecutar los dos notebooks. Entrena siempre con los
+datos anteriores **y** los nuevos juntos; si solo usas los nuevos, el modelo olvida los demás colores.
 
 > Si la cámara no abre: *Ajustes del Sistema → Privacidad y seguridad → Cámara* y habilita la Terminal / VS Code.
 

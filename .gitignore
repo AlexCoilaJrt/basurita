@@ -4,13 +4,19 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .DS_Store
+~$*
 
 # Modelos y salidas pesadas (se guardan fuera de git)
 modelos/*.pt
+# ...excepto el clasificador entrenado (~3 MB)
+!modelos/clasificador.pt
 capturas/*
 resultados/*
 datos/**/*.jpg
 datos/**/*.png
+datos/**/*.jpeg
+datos/**/*.webp
+datos/**/*.heic
 !**/.gitkeep
 
 # Secretos
