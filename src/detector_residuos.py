@@ -7,6 +7,8 @@ Uso:
 Teclas:
     q / ESC  -> salir
     s        -> guardar captura en capturas/ (captura_YYYYMMDD_HHMMSS.jpg)
+    c        -> con --recolectar Blanco: guarda la foto limpia en datos/recolectadas/Blanco/
+                (para sumarla a "data basurita/Blanco" y volver a entrenar)
 """
 import argparse
 import time
@@ -22,7 +24,10 @@ MODELO_DEFECTO = RAIZ / "modelos" / "best.pt"
 MODELO_WORLD = RAIZ / "modelos" / "yolov8s-worldv2.pt"
 MODELO_CLASIFICADOR = RAIZ / "modelos" / "clasificador.pt"
 MAX_RECORTES = 5  # objetos por cuadro que revisa el clasificador (CPU)
+CONF_CENTRO = 0.7  # plan B: confianza minima cuando el clasificador mira el centro
 DIR_CAPTURAS = RAIZ / "capturas"
+DIR_RECOLECTADAS = RAIZ / "datos" / "recolectadas"
+CARPETAS_DRIVE = ("Azul", "Amarillo", "Blanco", "Gris", "Marron", "Rojo", "Negro")
 
 # Colores en formato BGR (OpenCV)
 COLORES = {
@@ -103,6 +108,11 @@ MAPEO_WORLD = {
     "plastic lid": ("Tapa plastica", "blanco_plasticos"),
     "yogurt cup": ("Envase de yogurt", "blanco_plasticos"),
     "shampoo bottle": ("Frasco de shampoo", "blanco_plasticos"),
+    "plastic sheet": ("Lamina plastica", "blanco_plasticos"),
+    "plastic film": ("Film plastico", "blanco_plasticos"),
+    "clear plastic sheet": ("Lamina transparente", "blanco_plasticos"),
+    "colored plastic sheet": ("Lamina plastica de color", "blanco_plasticos"),
+    "plastic folder": ("Folder / mica plastica", "blanco_plasticos"),
     # Vidrio
     "glass bottle": ("Botella de vidrio", "gris_vidrio"),
     "glass jar": ("Frasco de vidrio", "gris_vidrio"),
@@ -184,6 +194,18 @@ def reclasificar(frame, detecciones, clasificador, conf_clas):
     return salida
 
 
+def clasificar_centro(frame, clasificador, conf_min):
+    """Plan B: si no se ubico ningun objeto, el clasificador mira el centro de la imagen."""
+    h, w = frame.shape[:2]
+    x1, y1, x2, y2 = w // 4, h // 6, w * 3 // 4, h * 5 // 6
+    r = clasificador.predict(frame[y1:y2, x1:x2], imgsz=224, device="cpu", verbose=False)[0]
+    resultado = clasificar(r.names[r.probs.top1])
+    conf = float(r.probs.top1conf)
+    if resultado is None or conf < conf_min:
+        return []
+    return [(x1, y1, x2, y2, f"{resultado[0]} (centro)", resultado[1], conf, None)]
+
+
 def detectar(frame, modelo, conf_min, imgsz, clasificador=None, conf_clas=0.4):
     """Devuelve [(x1, y1, x2, y2, nombre, clase, conf, contorno)] de los residuos del cuadro."""
     r = modelo.predict(frame, imgsz=imgsz, conf=conf_min, device="cpu", verbose=False,
@@ -198,6 +220,8 @@ def detectar(frame, modelo, conf_min, imgsz, clasificador=None, conf_clas=0.4):
         detecciones.append([x1, y1, x2, y2, *resultado, float(caja.conf[0]), contorno])
     if clasificador is not None:
         detecciones = reclasificar(frame, detecciones[:MAX_RECORTES], clasificador, conf_clas)
+        if not detecciones:
+            return clasificar_centro(frame, clasificador, CONF_CENTRO)
     return [tuple(d) for d in detecciones]
 
 
@@ -292,6 +316,8 @@ def main():
                     help="clasificador de color para YOLO-World (por defecto modelos/clasificador.pt)")
     ap.add_argument("--conf-clas", type=float, default=0.4,
                     help="confianza minima del clasificador de color")
+    ap.add_argument("--recolectar", choices=CARPETAS_DRIVE, default=None,
+                    help="con la tecla 'c' guarda fotos limpias en datos/recolectadas/<color>/")
     args = ap.parse_args()
 
     if args.modelo:
@@ -327,11 +353,16 @@ def main():
 
     fps, t_prev = 0.0, time.time()
     print("Detector iniciado. 'q' para salir, 's' para guardar captura.")
+    if args.recolectar:
+        dir_recolectar = DIR_RECOLECTADAS / args.recolectar
+        dir_recolectar.mkdir(parents=True, exist_ok=True)
+        print(f"Recolectando '{args.recolectar}': 'c' guarda la foto en {dir_recolectar}")
 
     while True:
         ok, frame = cam.read()
         if not ok:
             break
+        limpio = frame.copy()  # sin dibujos, para recolectar fotos de entrenamiento
 
         detecciones = detectar(frame, modelo, conf_min, args.imgsz, clasificador, args.conf_clas)
         conteo = Counter(d[5] for d in detecciones)
@@ -356,6 +387,10 @@ def main():
             nombre = str(DIR_CAPTURAS / f"captura_{datetime.now():%Y%m%d_%H%M%S}.jpg")
             cv2.imwrite(nombre, frame)
             print("Guardada:", nombre)
+        if tecla == ord("c") and args.recolectar:
+            nombre = dir_recolectar / f"{args.recolectar}_{datetime.now():%Y%m%d_%H%M%S_%f}.jpg"
+            cv2.imwrite(str(nombre), limpio)
+            print(f"Recolectada ({len(list(dir_recolectar.glob('*.jpg')))}):", nombre)
 
     cam.release()
     cv2.destroyAllWindows()
