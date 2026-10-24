@@ -92,7 +92,7 @@ Los datos se quedan en el Drive; en este proyecto solo van el código y los mode
 > se descarga solo), que busca ~50 residuos descritos en texto en `MAPEO_WORLD`
 > (`src/detector_residuos.py`). Es una aproximación; el modelo entrenado es más preciso.
 
-## Ejecutar el detector (Mac Intel)
+## Ejecutar el detector (Mac)
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
