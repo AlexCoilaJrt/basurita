@@ -45,6 +45,7 @@ detecciondebasura/
 ├── src/detector_residuos.py                         # detector en vivo con la webcam (Mac, CPU)      [usado]
 ├── notebooks/dataset_ntp900058_splits.ipynb        # arma el dataset de clasificación en el Drive  [usado]
 ├── notebooks/entrenamiento_clasificador.ipynb      # entrena el clasificador de color (Colab)      [usado]
+├── notebooks/eda_y_revision.ipynb                  # EDA, fuga de datos y si el modelo hace trampa  [revisión]
 ├── notebooks/entrenamiento_seg_drive.ipynb          # segmentación con fotos del Drive + TACO        [alternativa]
 ├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow           [alternativa]
 ├── src/datos_residuos.py                            # herramientas del notebook de segmentación      [alternativa]
@@ -64,6 +65,10 @@ detecciondebasura/
 2. `notebooks/entrenamiento_clasificador.ipynb` entrena **YOLO11n-cls** en 2 etapas (base congelada + ajuste fino)
    y guarda `clasificador.pt` en `MyDrive/data basurita/modelos/`.
 3. Copia `clasificador.pt` a `modelos/`. El detector queda así: **YOLO-World ubica el objeto y el clasificador decide el color**.
+4. (Revisión) `notebooks/eda_y_revision.ipynb` en Colab con *Ejecutar todo* (sirve CPU). Lee el zip y el modelo del Drive
+   y guarda en `data basurita/revision/`: EDA, fotos casi duplicadas entre train y test (acierto "limpio"),
+   atajo del fondo, acierto con el objeto tapado, mapas Grad-CAM, test con tu cámara (`data basurita/test_camara/<Color>/`)
+   y un resumen con semáforo. No modifica el dataset ni el modelo.
 
 Los datos se quedan en el Drive; en este proyecto solo van el código y los modelos `.pt`.
 
