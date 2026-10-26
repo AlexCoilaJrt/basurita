@@ -5,7 +5,10 @@ Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Per
 
 **Cómo funciona:** YOLO-World (preentrenado, sin modificar) **ubica** cada objeto y nuestro
 clasificador **YOLO11n-cls** (`modelos/clasificador.pt`, entrenado con `data basurita`) **decide el color**.
-Si YOLO-World no encuentra nada, el clasificador mira el centro de la imagen (plan B).
+**Plan B:** si no queda ningún objeto (YOLO-World no encontró nada, o el clasificador descartó todos por
+baja confianza), el clasificador mira el centro de la imagen y muestra el color solo si está seguro al 70% o más.
+Como el clasificador siempre elige uno de los 7 colores (no tiene la opción "no hay nada"), una pared con
+textura o una cara podrían mostrar un tacho; para la demo se puede apagar con `--sin-plan-b`.
 
 | Color | Acierto en test |
 |---|---|
@@ -46,7 +49,7 @@ detecciondebasura/
 ├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow           [alternativa]
 ├── src/datos_residuos.py                            # herramientas del notebook de segmentación      [alternativa]
 ├── docs/           # documentación en Word
-├── modelos/        # clasificador.pt (en git, ~3 MB); yolov8s-worldv2.pt se descarga solo
+├── modelos/        # clasificador.pt (en git, ~3 MB); yolov8s-worldv2.pt se descarga la primera vez
 ├── datos/          # recolectadas/<Color>/ (tecla 'c') y pruebas/ (fuera de git)
 ├── capturas/       # fotos guardadas con la tecla 's'
 ├── resultados/     # métricas y copias de Colab (fuera de git)
@@ -89,17 +92,38 @@ Los datos se quedan en el Drive; en este proyecto solo van el código y los mode
 - `resultados_residuos7.zip` → `resultados/`
 
 > **Sin `best.pt` también funciona:** el detector usa **YOLO-World** (`modelos/yolov8s-worldv2.pt`,
-> se descarga solo), que busca ~50 residuos descritos en texto en `MAPEO_WORLD`
+> se descarga en `modelos/` la primera vez que ejecutas el detector), que busca ~50 residuos descritos en texto en `MAPEO_WORLD`
 > (`src/detector_residuos.py`). Es una aproximación; el modelo entrenado es más preciso.
 
-## Ejecutar el detector (Mac)
+## Ejecutar el detector
+Requisitos: **Python 3.11** (64 bits) y **git** (para instalar `clip`). La primera ejecución necesita
+internet: descarga YOLO-World (~26 MB, en `modelos/`) y el modelo de CLIP (~340 MB).
+
+### Mac
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python src/detector_residuos.py
 ```
-Opciones: `--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso).
+Si la Mac no tiene git, macOS ofrece instalar las *Command Line Tools* (acepta).
+
+### Windows
+Instala [Python 3.11](https://www.python.org/downloads/) (marca *Add python.exe to PATH*) y [Git for Windows](https://git-scm.com/download/win). En PowerShell:
+```powershell
+git clone https://github.com/AlexCoilaJrt/basurita.git
+cd basurita
+py -3.11 -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python src\detector_residuos.py
+```
+- Si PowerShell no deja ejecutar `activate`: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+- Si la cámara no abre: *Configuración → Privacidad y seguridad → Cámara* → permitir a las aplicaciones de escritorio.
+
+### Opciones
+`--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso),
+`--sin-plan-b` (no mira el centro cuando no queda ningún objeto).
 La barra inferior muestra en qué tacho va el objeto detectado con mayor confianza.
 Teclas: `q`/`ESC` salir, `s` guardar captura.
 
@@ -111,7 +135,7 @@ Con la tecla `c` se guarda la foto **sin dibujos** en `datos/recolectadas/Blanco
 `data basurita/Blanco/` en el Drive y vuelve a ejecutar los dos notebooks. Entrena siempre con los
 datos anteriores **y** los nuevos juntos; si solo usas los nuevos, el modelo olvida los demás colores.
 
-> Si la cámara no abre: *Ajustes del Sistema → Privacidad y seguridad → Cámara* y habilita la Terminal / VS Code.
+> Si la cámara no abre en Mac: *Ajustes del Sistema → Privacidad y seguridad → Cámara* y habilita la Terminal / VS Code.
 
 ## (Opcional) Fotos propias en Roboflow (alternativa de detección)
 1. Guarda fotos de residuos reales en `datos/webcam/`.

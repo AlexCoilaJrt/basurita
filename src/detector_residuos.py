@@ -4,6 +4,7 @@ Uso:
     python src/detector_residuos.py                      (usa modelos/best.pt o, si no existe, YOLO-World)
     Con YOLO-World, si existe modelos/clasificador.pt, el clasificador decide el color de cada objeto.
     python src/detector_residuos.py --modelo otro.pt
+    python src/detector_residuos.py --sin-plan-b         (no mira el centro cuando no hay objetos)
 Teclas:
     q / ESC  -> salir
     s        -> guardar captura en capturas/ (captura_YYYYMMDD_HHMMSS.jpg)
@@ -18,6 +19,7 @@ from pathlib import Path
 
 import cv2
 from ultralytics import YOLO, YOLOWorld
+from ultralytics.utils.downloads import attempt_download_asset
 
 RAIZ = Path(__file__).resolve().parent.parent
 MODELO_DEFECTO = RAIZ / "modelos" / "best.pt"
@@ -206,7 +208,7 @@ def clasificar_centro(frame, clasificador, conf_min):
     return [(x1, y1, x2, y2, f"{resultado[0]} (centro)", resultado[1], conf, None)]
 
 
-def detectar(frame, modelo, conf_min, imgsz, clasificador=None, conf_clas=0.4):
+def detectar(frame, modelo, conf_min, imgsz, clasificador=None, conf_clas=0.4, plan_b=True):
     """Devuelve [(x1, y1, x2, y2, nombre, clase, conf, contorno)] de los residuos del cuadro."""
     r = modelo.predict(frame, imgsz=imgsz, conf=conf_min, device="cpu", verbose=False,
                        agnostic_nms=clasificador is not None)[0]
@@ -220,7 +222,7 @@ def detectar(frame, modelo, conf_min, imgsz, clasificador=None, conf_clas=0.4):
         detecciones.append([x1, y1, x2, y2, *resultado, float(caja.conf[0]), contorno])
     if clasificador is not None:
         detecciones = reclasificar(frame, detecciones[:MAX_RECORTES], clasificador, conf_clas)
-        if not detecciones:
+        if not detecciones and plan_b:
             return clasificar_centro(frame, clasificador, CONF_CENTRO)
     return [tuple(d) for d in detecciones]
 
@@ -304,6 +306,15 @@ def dibujar_veredicto(frame, principal):
                 fuente, 0.8, texto_color, 2, cv2.LINE_AA)
 
 
+def preparar_world(ruta):
+    """En una computadora nueva descarga YOLO-World (~26 MB) en modelos/; si ya existe, no hace nada."""
+    if ruta.exists():
+        return ruta
+    print(f"Descargando {ruta.name} en {ruta.parent} ...")
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    return Path(attempt_download_asset(str(ruta)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--modelo", default=None,
@@ -318,17 +329,21 @@ def main():
                     help="confianza minima del clasificador de color")
     ap.add_argument("--recolectar", choices=CARPETAS_DRIVE, default=None,
                     help="con la tecla 'c' guarda fotos limpias en datos/recolectadas/<color>/")
+    ap.add_argument("--sin-plan-b", action="store_true",
+                    help="no clasificar el centro de la imagen cuando no queda ningun objeto")
     args = ap.parse_args()
 
     if args.modelo:
         ruta = Path(args.modelo)
     else:
         ruta = MODELO_DEFECTO if MODELO_DEFECTO.exists() else MODELO_WORLD
+    es_world = "world" in ruta.name
+    if es_world:
+        ruta = preparar_world(ruta)
     if not ruta.exists():
         raise SystemExit(f"No se encontro el modelo: {ruta}\n"
                          "Entrena en Colab (notebooks/) y copia best.pt a modelos/.")
 
-    es_world = "world" in ruta.name
     if es_world:
         modelo = YOLOWorld(str(ruta))
         modelo.set_classes(list(MAPEO_WORLD))
@@ -344,7 +359,8 @@ def main():
     if es_world and ruta_clas.exists():
         clasificador = YOLO(str(ruta_clas))
     print(f"Modelo: {ruta.name} | confianza minima: {conf_min}"
-          + (f" | color: {ruta_clas.name}" if clasificador else ""))
+          + (f" | color: {ruta_clas.name}" if clasificador else "")
+          + (" | sin plan B" if clasificador and args.sin_plan_b else ""))
     cam = cv2.VideoCapture(args.camara)
     if not cam.isOpened():
         raise SystemExit("No se pudo abrir la camara. Revisa el permiso de Camara para la Terminal.")
@@ -364,7 +380,8 @@ def main():
             break
         limpio = frame.copy()  # sin dibujos, para recolectar fotos de entrenamiento
 
-        detecciones = detectar(frame, modelo, conf_min, args.imgsz, clasificador, args.conf_clas)
+        detecciones = detectar(frame, modelo, conf_min, args.imgsz, clasificador, args.conf_clas,
+                               plan_b=not args.sin_plan_b)
         conteo = Counter(d[5] for d in detecciones)
         principal = max(detecciones, key=lambda d: d[6])[4:7] if detecciones else None
 
