@@ -45,6 +45,7 @@ detecciondebasura/
 ├── src/detector_residuos.py                         # detector en vivo con la webcam (Mac, CPU)      [usado]
 ├── notebooks/dataset_ntp900058_splits.ipynb        # arma el dataset de clasificación en el Drive  [usado]
 ├── notebooks/entrenamiento_clasificador.ipynb      # entrena el clasificador de color (Colab)      [usado]
+├── notebooks/reentrenamiento_clasificador_v3.ipynb # reentrena el clasificador (v3, el que se usa)  [usado]
 ├── notebooks/eda_y_revision.ipynb                  # EDA, fuga de datos y si el modelo hace trampa  [revisión]
 ├── notebooks/entrenamiento_seg_drive.ipynb          # segmentación con fotos del Drive + TACO        [alternativa]
 ├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow           [alternativa]
@@ -125,6 +126,32 @@ python src\detector_residuos.py
 ```
 - Si PowerShell no deja ejecutar `activate`: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 - Si la cámara no abre: *Configuración → Privacidad y seguridad → Cámara* → permitir a las aplicaciones de escritorio.
+
+### Raspberry Pi
+El modelo no se cambia ni se convierte: el mismo `clasificador.pt` funciona en la Pi.
+
+**Qué se necesita**
+- Raspberry Pi 4 o 5 (mejor una Pi 5 de 8 GB), con su fuente oficial y una microSD de 32 GB o más.
+- Una webcam USB. La *Pi Camera Module* no funciona con el código actual.
+- Monitor, teclado y ratón, porque la ventana del detector necesita el escritorio.
+- Internet la primera vez.
+
+**Pasos**
+1. En otra computadora, abre [Raspberry Pi Imager](https://www.raspberrypi.com/software/), elige **Raspberry Pi OS (64-bit)** y grábalo en la microSD.
+   Tiene que ser de 64 bits, porque PyTorch no funciona en 32 bits.
+2. Pon la microSD en la Pi, enciéndela y abre la Terminal:
+   ```bash
+   git clone https://github.com/AlexCoilaJrt/basurita.git
+   cd basurita
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   python src/detector_residuos.py --sin-plan-b
+   ```
+   La instalación tarda unos 15–30 minutos. Raspberry Pi OS Bookworm ya trae Python 3.11.
+
+**Velocidad:** va lento, aproximadamente 1–2 imágenes por segundo, porque YOLO-World es pesado para la Pi.
+Acerca el residuo a la cámara y déjalo quieto un par de segundos.
 
 ### Opciones
 `--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso),
