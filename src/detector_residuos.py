@@ -5,6 +5,8 @@ Uso:
     Con YOLO-World, si existe modelos/clasificador.pt, el clasificador decide el color de cada objeto.
     python src/detector_residuos.py --modelo otro.pt
     python src/detector_residuos.py --sin-plan-b         (no mira el centro cuando no hay objetos)
+    python src/detector_residuos.py --escaner            (solo el clasificador, en un recuadro central;
+                                                          sin YOLO-World, para Raspberry Pi 4)
 Teclas:
     q / ESC  -> salir
     s        -> guardar captura en capturas/ (captura_YYYYMMDD_HHMMSS.jpg)
@@ -196,10 +198,14 @@ def reclasificar(frame, detecciones, clasificador, conf_clas):
     return salida
 
 
-def clasificar_centro(frame, clasificador, conf_min):
-    """Plan B: si no se ubico ningun objeto, el clasificador mira el centro de la imagen."""
+def zona_centro(frame):
     h, w = frame.shape[:2]
-    x1, y1, x2, y2 = w // 4, h // 6, w * 3 // 4, h * 5 // 6
+    return w // 4, h // 6, w * 3 // 4, h * 5 // 6
+
+
+def clasificar_centro(frame, clasificador, conf_min):
+    """Plan B y modo escaner: el clasificador mira el centro de la imagen."""
+    x1, y1, x2, y2 = zona_centro(frame)
     r = clasificador.predict(frame[y1:y2, x1:x2], imgsz=224, device="cpu", verbose=False)[0]
     resultado = clasificar(r.names[r.probs.top1])
     conf = float(r.probs.top1conf)
@@ -282,6 +288,15 @@ def dibujar_leyenda(frame, conteo, fps):
                     (255, 255, 255), 2 if n else 1, cv2.LINE_AA)
 
 
+def dibujar_guia(frame):
+    """Modo escaner: recuadro donde se pone el residuo."""
+    x1, y1, x2, y2 = zona_centro(frame)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 0), 5)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
+    cv2.putText(frame, "Pon el residuo aqui", (x1 + 10, y1 + 30), cv2.FONT_HERSHEY_SIMPLEX,
+                0.8, (255, 255, 255), 2, cv2.LINE_AA)
+
+
 def dibujar_veredicto(frame, principal):
     """Barra inferior grande con el tacho donde va el objeto mas seguro."""
     h, w = frame.shape[:2]
@@ -331,8 +346,29 @@ def main():
                     help="con la tecla 'c' guarda fotos limpias en datos/recolectadas/<color>/")
     ap.add_argument("--sin-plan-b", action="store_true",
                     help="no clasificar el centro de la imagen cuando no queda ningun objeto")
+    ap.add_argument("--escaner", action="store_true",
+                    help="solo el clasificador mira un recuadro central (sin YOLO-World; rapido en Raspberry Pi)")
     args = ap.parse_args()
 
+    if args.escaner:
+        modelo, conf_min = None, CONF_CENTRO
+        ruta = Path(args.clasificador) if args.clasificador else MODELO_CLASIFICADOR
+        if not ruta.exists():
+            raise SystemExit(f"No se encontro el clasificador: {ruta}")
+        clasificador = YOLO(str(ruta))
+        print(f"Modo escaner: {ruta.name} | confianza minima: {conf_min}")
+    else:
+        modelo, clasificador, conf_min = cargar_modelos(args)
+    cam = cv2.VideoCapture(args.camara)
+    if not cam.isOpened():
+        raise SystemExit("No se pudo abrir la camara. Revisa el permiso de Camara para la Terminal.")
+    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    bucle(cam, modelo, clasificador, conf_min, args)
+
+
+def cargar_modelos(args):
+    """Modo normal: YOLO-World (o best.pt) ubica y el clasificador decide el color."""
     if args.modelo:
         ruta = Path(args.modelo)
     else:
@@ -361,12 +397,10 @@ def main():
     print(f"Modelo: {ruta.name} | confianza minima: {conf_min}"
           + (f" | color: {ruta_clas.name}" if clasificador else "")
           + (" | sin plan B" if clasificador and args.sin_plan_b else ""))
-    cam = cv2.VideoCapture(args.camara)
-    if not cam.isOpened():
-        raise SystemExit("No se pudo abrir la camara. Revisa el permiso de Camara para la Terminal.")
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    return modelo, clasificador, conf_min
 
+
+def bucle(cam, modelo, clasificador, conf_min, args):
     fps, t_prev = 0.0, time.time()
     print("Detector iniciado. 'q' para salir, 's' para guardar captura.")
     if args.recolectar:
@@ -380,8 +414,13 @@ def main():
             break
         limpio = frame.copy()  # sin dibujos, para recolectar fotos de entrenamiento
 
-        detecciones = detectar(frame, modelo, conf_min, args.imgsz, clasificador, args.conf_clas,
-                               plan_b=not args.sin_plan_b)
+        if modelo is None:  # modo escaner
+            detecciones = clasificar_centro(frame, clasificador, conf_min)
+            if not detecciones:
+                dibujar_guia(frame)
+        else:
+            detecciones = detectar(frame, modelo, conf_min, args.imgsz, clasificador, args.conf_clas,
+                                   plan_b=not args.sin_plan_b)
         conteo = Counter(d[5] for d in detecciones)
         principal = max(detecciones, key=lambda d: d[6])[4:7] if detecciones else None
 

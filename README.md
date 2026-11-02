@@ -154,12 +154,22 @@ El modelo no se cambia ni se convierte: el mismo `clasificador.pt` funciona en l
    ```
    La instalación tarda unos 15–30 minutos.
 
-**Velocidad:** va lento, aproximadamente 1–2 imágenes por segundo, porque YOLO-World es pesado para la Pi.
-Acerca el residuo a la cámara y déjalo quieto un par de segundos.
+**Velocidad:** el modo normal va lento en la Pi (en una Pi 4, aproximadamente 1 imagen cada 1–3 segundos), porque YOLO-World es pesado.
+Acerca el residuo a la cámara y déjalo quieto unos segundos. Conviene una Pi 4 de **4 u 8 GB**; con 2 GB puede quedarse sin memoria.
+
+**Modo escáner (recomendado para la Pi 4):** no usa YOLO-World, solo tu clasificador (`clasificador.pt`).
+Aparece un recuadro en el centro: pon el residuo dentro y la barra de abajo muestra el tacho.
+Es mucho más rápido y usa poca memoria:
+```bash
+python src/detector_residuos.py --escaner
+```
+Pon el residuo de cerca, ocupando casi todo el recuadro y sobre un fondo liso. Si el recuadro está vacío
+o el modelo duda (menos del 70%), no muestra ningún color.
 
 ### Opciones
 `--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso),
-`--sin-plan-b` (no mira el centro cuando no queda ningún objeto).
+`--sin-plan-b` (no mira el centro cuando no queda ningún objeto),
+`--escaner` (solo el clasificador, en un recuadro central; sin YOLO-World).
 La barra inferior muestra en qué tacho va el objeto detectado con mayor confianza.
 Teclas: `q`/`ESC` salir, `s` guardar captura.
 
