@@ -137,8 +137,12 @@ El modelo no se cambia ni se convierte: el mismo `clasificador.pt` funciona en l
 - Internet la primera vez.
 
 **Pasos**
-1. En otra computadora, abre [Raspberry Pi Imager](https://www.raspberrypi.com/software/), elige **Raspberry Pi OS (64-bit)** y grábalo en la microSD.
-   Tiene que ser de 64 bits, porque PyTorch no funciona en 32 bits.
+1. En otra computadora, abre [Raspberry Pi Imager](https://www.raspberrypi.com/software/), entra en *Raspberry Pi OS (other)*,
+   elige **Raspberry Pi OS (Legacy, 64-bit)** y grábalo en la microSD.
+   - **Legacy** es la versión *Bookworm*, que trae Python 3.11. La versión normal (*Trixie*) trae Python 3.13,
+     y con ella falla `pip install`, porque `torch==2.2.2` no existe para Python 3.13.
+   - Tiene que ser de 64 bits, porque PyTorch no funciona en 32 bits.
+   - Para comprobarlo, en la Terminal escribe `python3 --version`: debe decir 3.11.
 2. Pon la microSD en la Pi, enciéndela y abre la Terminal:
    ```bash
    git clone https://github.com/AlexCoilaJrt/basurita.git
@@ -148,7 +152,7 @@ El modelo no se cambia ni se convierte: el mismo `clasificador.pt` funciona en l
    pip install -r requirements.txt
    python src/detector_residuos.py --sin-plan-b
    ```
-   La instalación tarda unos 15–30 minutos. Raspberry Pi OS Bookworm ya trae Python 3.11.
+   La instalación tarda unos 15–30 minutos.
 
 **Velocidad:** va lento, aproximadamente 1–2 imágenes por segundo, porque YOLO-World es pesado para la Pi.
 Acerca el residuo a la cámara y déjalo quieto un par de segundos.
