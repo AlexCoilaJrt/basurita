@@ -23,6 +23,7 @@ Acierto general en val: **90,8%** (top-1). El dataset se dividió foto por foto 
 valores pueden ser algo optimistas respecto a la cámara real.
 
 Documentación detallada en `docs/`:
+- `Guia_Raspberry_Pi.docx`: **guía paso a paso para ejecutar el modelo en una Raspberry Pi 4 con cámara web**.
 - `Explicacion_detector_residuos.docx`: todo el proyecto, el entrenamiento (optimizadores, pérdida, aumento de datos, épocas) y los resultados.
 - `Preentrenado_y_nuestro_entrenamiento.docx`: qué estaba entrenado, qué entrenamos nosotros y cómo mejorar con más datos.
 
