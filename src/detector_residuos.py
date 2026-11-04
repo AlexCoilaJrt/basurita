@@ -14,6 +14,8 @@ Teclas:
                 (para sumarla a "data basurita/Blanco" y volver a entrenar)
 """
 import argparse
+import os
+import sys
 import time
 from collections import Counter
 from datetime import datetime
@@ -334,7 +336,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--modelo", default=None,
                     help="ruta al modelo (por defecto modelos/best.pt o, si no existe, YOLO-World)")
-    ap.add_argument("--camara", type=int, default=0, help="indice de la camara")
+    ap.add_argument("--camara", type=int, default=None,
+                    help="indice de la camara (por defecto prueba 0, 1, 2 y 3)")
     ap.add_argument("--conf", type=float, default=None,
                     help="confianza minima (0.45; 0.15 con YOLO-World)")
     ap.add_argument("--imgsz", type=int, default=480, help="tamano de inferencia (416/480/640)")
@@ -359,12 +362,29 @@ def main():
         print(f"Modo escaner: {ruta.name} | confianza minima: {conf_min}")
     else:
         modelo, clasificador, conf_min = cargar_modelos(args)
-    cam = cv2.VideoCapture(args.camara)
-    if not cam.isOpened():
-        raise SystemExit("No se pudo abrir la camara. Revisa el permiso de Camara para la Terminal.")
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    if sys.platform.startswith("linux") and not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        raise SystemExit("No hay pantalla: ejecuta el detector desde el escritorio de la Raspberry Pi "
+                         "(no por SSH) o por VNC.")
+    # El escaner reduce la imagen a 224 px: 640x480 basta y va mas fluido en la Raspberry Pi
+    cam = abrir_camara(args.camara, (640, 480) if args.escaner else (1280, 720))
     bucle(cam, modelo, clasificador, conf_min, args)
+
+
+def abrir_camara(indice, resolucion):
+    """Abre la camara indicada o, si no se indico, la primera que entregue imagen (0 a 3)."""
+    for i in [indice] if indice is not None else range(4):
+        cam = cv2.VideoCapture(i)
+        if cam.isOpened():
+            cam.set(cv2.CAP_PROP_FRAME_WIDTH, resolucion[0])
+            cam.set(cv2.CAP_PROP_FRAME_HEIGHT, resolucion[1])
+            for _ in range(20):  # algunas camaras tardan en entregar el primer cuadro
+                if cam.read()[0]:
+                    print(f"Camara {i} abierta")
+                    return cam
+                time.sleep(0.1)
+        cam.release()
+    raise SystemExit("No se pudo abrir la camara. Revisa que la webcam este conectada "
+                     "y el permiso de Camara para la Terminal.")
 
 
 def cargar_modelos(args):

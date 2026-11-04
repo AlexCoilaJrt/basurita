@@ -55,6 +55,7 @@ detecciondebasura/
 ├── datos/          # recolectadas/<Color>/ (tecla 'c') y pruebas/ (fuera de git)
 ├── capturas/       # fotos guardadas con la tecla 's'
 ├── resultados/     # métricas y copias de Colab (fuera de git)
+├── instalar_pi.sh / iniciar_pi.sh                  # instalar e iniciar en la Raspberry Pi
 └── requirements.txt
 ```
 
@@ -127,47 +128,51 @@ python src\detector_residuos.py
 - Si PowerShell no deja ejecutar `activate`: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 - Si la cámara no abre: *Configuración → Privacidad y seguridad → Cámara* → permitir a las aplicaciones de escritorio.
 
-### Raspberry Pi
+### Raspberry Pi 4 (o 5) con webcam
 El modelo no se cambia ni se convierte: el mismo `clasificador.pt` funciona en la Pi.
 
 **Qué se necesita**
-- Raspberry Pi 4 o 5 (mejor una Pi 5 de 8 GB), con su fuente oficial y una microSD de 32 GB o más.
+- Raspberry Pi 4 (2, 4 u 8 GB) o Pi 5, con su fuente oficial y una microSD de 32 GB o más.
 - Una webcam USB. La *Pi Camera Module* no funciona con el código actual.
-- Monitor, teclado y ratón, porque la ventana del detector necesita el escritorio.
-- Internet la primera vez.
+- Monitor, teclado y ratón (o VNC), porque la ventana del detector necesita el escritorio; por SSH no se ve.
+- Internet durante la instalación.
 
-**Pasos**
-1. En otra computadora, abre [Raspberry Pi Imager](https://www.raspberrypi.com/software/), entra en *Raspberry Pi OS (other)*,
-   elige **Raspberry Pi OS (Legacy, 64-bit)** y grábalo en la microSD.
-   - **Legacy** es la versión *Bookworm*, que trae Python 3.11. La versión normal (*Trixie*) trae Python 3.13,
-     y con ella falla `pip install`, porque `torch==2.2.2` no existe para Python 3.13.
-   - Tiene que ser de 64 bits, porque PyTorch no funciona en 32 bits.
-   - Para comprobarlo, en la Terminal escribe `python3 --version`: debe decir 3.11.
-2. Pon la microSD en la Pi, enciéndela y abre la Terminal:
-   ```bash
-   git clone https://github.com/AlexCoilaJrt/basurita.git
-   cd basurita
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   python src/detector_residuos.py --sin-plan-b
-   ```
-   La instalación tarda unos 15–30 minutos.
+**1. Sistema.** Con [Raspberry Pi Imager](https://www.raspberrypi.com/software/) graba
+**Raspberry Pi OS (Legacy, 64-bit)** (en *Raspberry Pi OS (other)*). Es la recomendada: trae Python 3.11, con las
+mismas versiones de las librerías que se usaron en la PC. La versión normal de 64 bits (Python 3.13) también instala,
+con versiones más nuevas de PyTorch. Tiene que ser de **64 bits** y con escritorio.
 
-**Velocidad:** el modo normal va lento en la Pi (en una Pi 4, aproximadamente 1 imagen cada 1–3 segundos), porque YOLO-World es pesado.
-Acerca el residuo a la cámara y déjalo quieto unos segundos. Conviene una Pi 4 de **4 u 8 GB**; con 2 GB puede quedarse sin memoria.
-
-**Modo escáner (recomendado para la Pi 4):** no usa YOLO-World, solo tu clasificador (`clasificador.pt`).
-Aparece un recuadro en el centro: pon el residuo dentro y la barra de abajo muestra el tacho.
-Es mucho más rápido y usa poca memoria:
+**2. Instalar** (en la Terminal de la Pi; tarda unos 15–30 minutos):
 ```bash
-python src/detector_residuos.py --escaner
+sudo apt install -y git
+git clone https://github.com/AlexCoilaJrt/basurita.git
+cd basurita
+bash instalar_pi.sh
 ```
-Pon el residuo de cerca, ocupando casi todo el recuadro y sobre un fondo liso. Si el recuadro está vacío
-o el modelo duda (menos del 70%), no muestra ningún color.
+`instalar_pi.sh` revisa que el sistema sea de 64 bits, instala lo necesario, crea el entorno de Python
+y al final prueba el clasificador ("Clasificador OK: 7 clases").
+
+**3. Iniciar** (cada vez, desde la carpeta `basurita`):
+```bash
+bash iniciar_pi.sh            # modo escáner (recomendado en la Pi 4)
+bash iniciar_pi.sh --normal   # YOLO-World + clasificador (lento; mejor con 4 GB o más)
+```
+- **Modo escáner:** solo usa el clasificador (`clasificador.pt`). Aparece un recuadro en el centro: pon el residuo
+  dentro, de cerca y sobre un fondo liso, y la barra de abajo muestra el tacho. Si el recuadro está vacío o el
+  modelo duda (menos del 70%), no muestra ningún color. Va fluido y usa poca memoria, también en una Pi 4 de 2 GB.
+- **Modo normal:** ubica varios objetos a la vez, pero en una Pi 4 va lento (aproximadamente 1 imagen cada 1–3 segundos)
+  y necesita descargar YOLO-World y CLIP la primera vez. Con 2 GB de memoria puede cerrarse: usa el escáner.
+
+**Si algo falla**
+| Problema | Solución |
+|---|---|
+| "No se pudo abrir la camara" | Revisa que la webcam esté conectada (el detector prueba las cámaras 0 a 3); o indica una: `bash iniciar_pi.sh --camara 1` |
+| "No hay pantalla" | Ejecútalo desde el escritorio de la Pi (o por VNC), no por SSH |
+| "se necesita Raspberry Pi OS de 64 bits" | Graba de nuevo la microSD con la versión de 64 bits |
+| El modo normal se cierra o se congela | Falta memoria: usa `bash iniciar_pi.sh` (modo escáner) |
 
 ### Opciones
-`--camara 1`, `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso),
+`--camara 1` (por defecto prueba 0 a 3), `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso),
 `--sin-plan-b` (no mira el centro cuando no queda ningún objeto),
 `--escaner` (solo el clasificador, en un recuadro central; sin YOLO-World).
 La barra inferior muestra en qué tacho va el objeto detectado con mayor confianza.

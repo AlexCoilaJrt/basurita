@@ -1,8 +1,11 @@
-# Entorno para MacBook Pro Intel (sin GPU NVIDIA) - Python 3.11
+# Mac Intel, Windows y Raspberry Pi (Raspberry Pi OS 64 bits) - Python 3.11 recomendado
 # PyTorch dejó de publicar versiones para Mac Intel después de la 2.2.x
-torch==2.2.2
-torchvision==0.17.2
-numpy<2
+torch==2.2.2; python_version < "3.12"
+torchvision==0.17.2; python_version < "3.12"
+numpy<2; python_version < "3.12"
+# Python 3.12 o más nuevo (por ejemplo, Raspberry Pi OS Trixie trae 3.13)
+torch>=2.6; python_version >= "3.12"
+torchvision>=0.21; python_version >= "3.12"
 opencv-python==4.10.0.84
 ultralytics>=8.3,<8.4
 # YOLO-World (deteccion por texto, sin entrenar)
