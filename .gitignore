@@ -21,3 +21,7 @@ datos/**/*.heic
 
 # Secretos
 .env
+
+# Archivos personales que no son del proyecto
+Deterioro_ante_shocks*.pdf
+reporte_revision_*.docx
