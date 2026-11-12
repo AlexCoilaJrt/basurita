@@ -25,3 +25,8 @@ datos/**/*.heic
 # Archivos personales que no son del proyecto
 Deterioro_ante_shocks*.pdf
 reporte_revision_*.docx
+
+# Examen del docente (datos locales, se suben a Drive)
+examen/
+examen_test.zip
+resultados_v3/

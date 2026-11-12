@@ -7,6 +7,8 @@ Uso:
     python src/detector_residuos.py --sin-plan-b         (no mira el centro cuando no hay objetos)
     python src/detector_residuos.py --escaner            (solo el clasificador, en un recuadro central;
                                                           sin YOLO-World, para Raspberry Pi 4)
+    python src/detector_residuos.py --escaner --quiosco  (pantalla completa con los 7 tachos en fila;
+                                                          resalta el tacho correcto, para un punto de reciclaje)
 Teclas:
     q / ESC  -> salir
     s        -> guardar captura en capturas/ (captura_YYYYMMDD_HHMMSS.jpg)
@@ -17,11 +19,12 @@ import argparse
 import os
 import sys
 import time
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime
 from pathlib import Path
 
 import cv2
+import numpy as np
 from ultralytics import YOLO, YOLOWorld
 from ultralytics.utils.downloads import attempt_download_asset
 
@@ -31,6 +34,8 @@ MODELO_WORLD = RAIZ / "modelos" / "yolov8s-worldv2.pt"
 MODELO_CLASIFICADOR = RAIZ / "modelos" / "clasificador.pt"
 MAX_RECORTES = 5  # objetos por cuadro que revisa el clasificador (CPU)
 CONF_CENTRO = 0.7  # plan B: confianza minima cuando el clasificador mira el centro
+VENTANA = "Detector de residuos - NTP 900.058"
+CUADROS_QUIOSCO = 7  # en modo quiosco, el tacho mostrado es el mas votado en los ultimos cuadros
 DIR_CAPTURAS = RAIZ / "capturas"
 DIR_RECOLECTADAS = RAIZ / "datos" / "recolectadas"
 CARPETAS_DRIVE = ("Azul", "Amarillo", "Blanco", "Gris", "Marron", "Rojo", "Negro")
@@ -323,6 +328,55 @@ def dibujar_veredicto(frame, principal):
                 fuente, 0.8, texto_color, 2, cv2.LINE_AA)
 
 
+def componer_quiosco(frame, principal):
+    """Modo quiosco: debajo de la camara, los 7 tachos en fila (orden de COLORES) y el correcto resaltado."""
+    h, w = frame.shape[:2]
+    alto = int(h * 0.42)
+    panel = np.full((alto, w, 3), 25, np.uint8)
+    fuente = cv2.FONT_HERSHEY_SIMPLEX
+    escala = w / 900
+    clase = principal[1] if principal else None
+
+    if clase:
+        n = list(COLORES).index(clase) + 1
+        tacho, categoria = ETIQUETAS[clase].split(" - ")
+        titulo, subtitulo = f"Ve al tacho {n}: {tacho}", f"{categoria}  |  {principal[2]:.0%}"
+    else:
+        titulo, subtitulo = "Acerca un residuo a la camara", "Un solo residuo, de cerca y con fondo liso"
+    cv2.putText(panel, titulo, (int(20 * escala), int(50 * escala)), fuente, 1.5 * escala,
+                (255, 255, 255), max(2, int(4 * escala)), cv2.LINE_AA)
+    cv2.putText(panel, subtitulo, (int(22 * escala), int(84 * escala)), fuente, 0.8 * escala,
+                (210, 210, 210), max(1, int(2 * escala)), cv2.LINE_AA)
+
+    margen, sep = int(w * 0.02), int(w * 0.012)
+    ancho = (w - 2 * margen - 6 * sep) // 7
+    y_sup, y_inf = int(alto * 0.46), alto - int(alto * 0.06)
+    for i, (c, color) in enumerate(COLORES.items()):
+        x1 = margen + i * (ancho + sep)
+        elegido = c == clase
+        sube = int(alto * 0.07) if elegido else 0
+        if clase and not elegido:  # los demas se apagan
+            color = tuple(int(v * 0.35) for v in color)
+        cv2.rectangle(panel, (x1, y_sup - sube), (x1 + ancho, y_inf), color, -1)
+        cv2.rectangle(panel, (x1, y_sup - sube), (x1 + ancho, y_inf),
+                      (0, 255, 255) if elegido else (90, 90, 90), max(2, int(6 * escala)) if elegido else 1)
+        texto = contraste(c) if (elegido or not clase) else (200, 200, 200)
+        numero = str(i + 1)
+        (tw, th), _ = cv2.getTextSize(numero, fuente, 1.2 * escala, max(2, int(3 * escala)))
+        cv2.putText(panel, numero, (x1 + (ancho - tw) // 2, y_sup - sube + th + int(12 * escala)), fuente,
+                    1.2 * escala, texto, max(2, int(3 * escala)), cv2.LINE_AA)
+        corto = ETIQUETAS[c].split(" - ")[0]
+        (tw, _), _ = cv2.getTextSize(corto, fuente, 0.45 * escala, max(1, int(escala)))
+        cv2.putText(panel, corto, (x1 + (ancho - tw) // 2, y_inf - int(10 * escala)), fuente, 0.45 * escala,
+                    texto, max(1, int(escala)), cv2.LINE_AA)
+        if elegido:  # flecha hacia abajo sobre el tacho correcto
+            cx, punta = x1 + ancho // 2, y_sup - sube - int(4 * escala)
+            lado = int(ancho * 0.18)
+            flecha = [(cx - lado, punta - lado), (cx + lado, punta - lado), (cx, punta)]
+            cv2.fillPoly(panel, [np.array(flecha, dtype=np.int32)], (0, 255, 255))
+    return np.vstack([frame, panel])
+
+
 def preparar_world(ruta):
     """En una computadora nueva descarga YOLO-World (~26 MB) en modelos/; si ya existe, no hace nada."""
     if ruta.exists():
@@ -351,6 +405,8 @@ def main():
                     help="no clasificar el centro de la imagen cuando no queda ningun objeto")
     ap.add_argument("--escaner", action="store_true",
                     help="solo el clasificador mira un recuadro central (sin YOLO-World; rapido en Raspberry Pi)")
+    ap.add_argument("--quiosco", action="store_true",
+                    help="pantalla completa con los 7 tachos en fila; resalta el correcto (punto de reciclaje)")
     args = ap.parse_args()
 
     if args.escaner:
@@ -422,6 +478,10 @@ def cargar_modelos(args):
 
 def bucle(cam, modelo, clasificador, conf_min, args):
     fps, t_prev = 0.0, time.time()
+    if args.quiosco:
+        cv2.namedWindow(VENTANA, cv2.WINDOW_NORMAL)
+        cv2.setWindowProperty(VENTANA, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        votos = deque(maxlen=CUADROS_QUIOSCO)
     print("Detector iniciado. 'q' para salir, 's' para guardar captura.")
     if args.recolectar:
         dir_recolectar = DIR_RECOLECTADAS / args.recolectar
@@ -451,17 +511,25 @@ def bucle(cam, modelo, clasificador, conf_min, args):
         t_now = time.time()
         fps = 0.9 * fps + 0.1 * (1.0 / max(t_now - t_prev, 1e-6))
         t_prev = t_now
-        dibujar_leyenda(frame, conteo, fps)
-        dibujar_veredicto(frame, principal)
+        if args.quiosco:
+            # el tacho mas votado en los ultimos cuadros (sin parpadeos); None si casi siempre fue "nada"
+            votos.append(principal)
+            ganador, n = Counter(p[1] if p else None for p in votos).most_common(1)[0]
+            ultimo = next((p for p in reversed(votos) if p and p[1] == ganador), None)
+            pantalla = componer_quiosco(frame, ultimo if ganador and n > len(votos) // 2 else None)
+        else:
+            dibujar_leyenda(frame, conteo, fps)
+            dibujar_veredicto(frame, principal)
+            pantalla = frame
 
-        cv2.imshow("Detector de residuos - NTP 900.058", frame)
+        cv2.imshow(VENTANA, pantalla)
         tecla = cv2.waitKey(1) & 0xFF
         if tecla in (ord("q"), 27):
             break
         if tecla == ord("s"):
             DIR_CAPTURAS.mkdir(exist_ok=True)
             nombre = str(DIR_CAPTURAS / f"captura_{datetime.now():%Y%m%d_%H%M%S}.jpg")
-            cv2.imwrite(nombre, frame)
+            cv2.imwrite(nombre, pantalla)
             print("Guardada:", nombre)
         if tecla == ord("c") and args.recolectar:
             nombre = dir_recolectar / f"{args.recolectar}_{datetime.now():%Y%m%d_%H%M%S_%f}.jpg"

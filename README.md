@@ -1,26 +1,32 @@
-# Detector de residuos – NTP 900.058 (7 colores)
+# ReciclaIA – Detector de residuos NTP 900.058 (7 colores)
 
-Detección de residuos en tiempo real con la webcam (Ultralytics).
+Detección de residuos en tiempo real con la webcam (Ultralytics), en Mac/Windows, Raspberry Pi y celular Android.
 Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Perú).
 
 **Cómo funciona:** YOLO-World (preentrenado, sin modificar) **ubica** cada objeto y nuestro
-clasificador **YOLO11n-cls** (`modelos/clasificador.pt`, entrenado con `data basurita`) **decide el color**.
+clasificador **YOLO11n-cls** (`modelos/clasificador.pt`, modelo final **v9 limpio**, md5 `35b25249faee5906f9eec61fd3787aa0`)
+**decide el color**.
 **Plan B:** si no queda ningún objeto (YOLO-World no encontró nada, o el clasificador descartó todos por
 baja confianza), el clasificador mira el centro de la imagen y muestra el color solo si está seguro al 70% o más.
 Como el clasificador siempre elige uno de los 7 colores (no tiene la opción "no hay nada"), una pared con
 textura o una cara podrían mostrar un tacho; para la demo se puede apagar con `--sin-plan-b`.
 
-| Color | Acierto en test |
-|---|---|
-| Marrón | 99,0% |
-| Azul | 94,0% |
-| Gris | 92,0% |
-| Amarillo / Negro | 91,3% |
-| Rojo | 85,7% |
-| Blanco | 82,7% |
+**Resultados de v9 limpio** (detalle, verificación de fuga de datos y limitaciones en `docs/v9_limpio/RESULTADOS.md`):
 
-Acierto general en val: **90,8%** (top-1). El dataset se dividió foto por foto al azar, así que estos
-valores pueden ser algo optimistas respecto a la cámara real.
+| Color | Acierto en test limpio |
+|---|---|
+| Marrón | 99% |
+| Negro | 93% |
+| Azul | 92% |
+| Amarillo / Gris | 89% |
+| Blanco | 85% |
+| Rojo | 83% |
+
+- **Test limpio: 89,3%** (1847 fotos sin ninguna parecida a train, pHash). Es la medida más honesta.
+- Fotos reales de celular: 8 de 10 objetos.
+- Examen del docente (1455 imágenes, su fórmula): **21,7** (18,3 si "seguridad" se limita a 2 puntos). Es optimista:
+  se entrenó con fuentes del mismo origen que el examen (TrashNet, Waste Classification, Medical Waste 4.0), **sin**
+  sus fotos de test. Cómo se obtuvo el modelo y qué declarar: `docs/v9_limpio/PROCEDENCIA.md`.
 
 Documentación detallada en `docs/`:
 - `Guia_Raspberry_Pi.docx`: **guía paso a paso para ejecutar el modelo en una Raspberry Pi 4 con cámara web**.
@@ -46,13 +52,18 @@ detecciondebasura/
 ├── src/detector_residuos.py                         # detector en vivo con la webcam (Mac, CPU)      [usado]
 ├── notebooks/dataset_ntp900058_splits.ipynb        # arma el dataset de clasificación en el Drive  [usado]
 ├── notebooks/entrenamiento_clasificador.ipynb      # entrena el clasificador de color (Colab)      [usado]
-├── notebooks/reentrenamiento_clasificador_v3.ipynb # reentrena el clasificador (v3, el que se usa)  [usado]
+├── notebooks/reentrenamiento_clasificador_v3.ipynb # reentrena el clasificador (v3)                 [historial]
+├── notebooks/clasificador_v6/v7, mezcla_v6_v7, clasificador_v9_rapido, verificacion_final.ipynb
+│                                                   # del v6 al modelo final v9 limpio (Colab)       [usado]
 ├── notebooks/eda_y_revision.ipynb                  # EDA, fuga de datos y si el modelo hace trampa  [revisión]
 ├── notebooks/entrenamiento_seg_drive.ipynb          # segmentación con fotos del Drive + TACO        [alternativa]
 ├── notebooks/entrenamiento_residuos_ntp900058.ipynb  # detección con datasets de Roboflow           [alternativa]
 ├── src/datos_residuos.py                            # herramientas del notebook de segmentación      [alternativa]
-├── docs/           # documentación en Word
-├── modelos/        # clasificador.pt (en git, ~3 MB); yolov8s-worldv2.pt se descarga la primera vez
+├── docs/           # documentación en Word; docs/v9_limpio/: resultados, procedencia y gráficos del modelo final
+├── herramientas/   # evaluar_rubrica.py (nota con la fórmula del docente), verificar_examen.py, reconstruir_garbage_v1i.py
+├── app_camara/     # programa de cámara de la entrega (recuadro central, detecta "sin objeto"); ver su LEEME.txt
+├── app_movil/      # app Android (Flutter) con el mismo modelo en TFLite; ver app_movil/README.md
+├── modelos/        # clasificador.pt = v9 limpio (en git, ~3 MB); yolov8s-worldv2.pt se descarga la primera vez
 ├── datos/          # recolectadas/<Color>/ (tecla 'c') y pruebas/ (fuera de git)
 ├── capturas/       # fotos guardadas con la tecla 's'
 ├── resultados/     # métricas y copias de Colab (fuera de git)
@@ -157,10 +168,14 @@ y al final prueba el clasificador ("Clasificador OK: 7 clases").
 ```bash
 bash iniciar_pi.sh            # modo escáner (recomendado en la Pi 4)
 bash iniciar_pi.sh --normal   # YOLO-World + clasificador (lento; mejor con 4 GB o más)
+bash iniciar_pi.sh --quiosco  # escáner a pantalla completa para un punto de reciclaje
 ```
 - **Modo escáner:** solo usa el clasificador (`clasificador.pt`). Aparece un recuadro en el centro: pon el residuo
   dentro, de cerca y sobre un fondo liso, y la barra de abajo muestra el tacho. Si el recuadro está vacío o el
   modelo duda (menos del 70%), no muestra ningún color. Va fluido y usa poca memoria, también en una Pi 4 de 2 GB.
+- **Modo quiosco:** pantalla completa (sale con `q`). Debajo de la cámara aparecen los 7 tachos en fila, numerados;
+  el correcto se resalta con una flecha y un texto grande ("Ve al tacho 3: BLANCO"). Para que no parpadee, muestra
+  el tacho más votado en los últimos 7 cuadros. Ordena los tachos físicos en el mismo orden que la pantalla.
 - **Modo normal:** ubica varios objetos a la vez, pero en una Pi 4 va lento (aproximadamente 1 imagen cada 1–3 segundos)
   y necesita descargar YOLO-World y CLIP la primera vez. Con 2 GB de memoria puede cerrarse: usa el escáner.
 
@@ -175,7 +190,8 @@ bash iniciar_pi.sh --normal   # YOLO-World + clasificador (lento; mejor con 4 GB
 ### Opciones
 `--camara 1` (por defecto prueba 0 a 3), `--conf 0.5` (por defecto 0.45, o 0.15 con YOLO-World), `--imgsz 416` (más rápido) o `640` (más preciso),
 `--sin-plan-b` (no mira el centro cuando no queda ningún objeto),
-`--escaner` (solo el clasificador, en un recuadro central; sin YOLO-World).
+`--escaner` (solo el clasificador, en un recuadro central; sin YOLO-World),
+`--quiosco` (pantalla completa con los 7 tachos en fila; se combina con `--escaner`).
 La barra inferior muestra en qué tacho va el objeto detectado con mayor confianza.
 Teclas: `q`/`ESC` salir, `s` guardar captura.
 

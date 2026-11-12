@@ -1,0 +1,20 @@
+metrica,v5,v8b,v9,v9_limpio (FINAL)
+val_limpio_color,0.899,0.909,0.907,0.905
+val_limpio_grises,0.862,0.878,0.869,0.869
+val_limpio_con_fondo,0.444,0.463,0.744,0.765
+test_limpio,0.893,0.899,0.885,0.893
+fondos_vacios_dice_Rojo,0.357,0.700,0.653,0.323
+falsos_Rojo_con_fondo,0.154,0.294,0.049,0.040
+celular_fotos,0.570,0.519,0.620,0.582
+celular_objetos,8/10,7/10,9/10,8/10
+examen: Amarillo (metal),0.930,0.930,0.930,0.907
+examen: Anorganik,0.561,0.510,0.523,0.461
+examen: Azul (papel/carton),0.950,0.980,1.000,0.990
+examen: Blanco (plastico),0.730,0.892,0.919,0.919
+examen: Gris (vidrio),0.930,0.982,0.895,0.965
+examen: Marron (Organik),0.593,0.803,0.877,0.887
+examen: No-Rojo (medico general),0.963,0.978,0.993,0.993
+examen: Residu (Negro/Rojo),0.642,0.691,0.540,0.604
+examen: Rojo (biocontaminado),0.298,0.803,0.745,0.774
+nota_estimada,17.70,21.42,21.39,21.67
+nota_si_seguridad_max2,16.51,18.26,18.11,18.30

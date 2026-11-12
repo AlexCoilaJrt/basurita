@@ -1,0 +1,48 @@
+CLASIFICADOR DE RESIDUOS - NTP 900.058 (7 colores) - modelo final v9 limpio (YOLO11n-cls)
+=============================================================================
+modelos/clasificador.pt   -> modelo final v9 limpio (el que se entrega)
+                             md5: 35b25249faee5906f9eec61fd3787aa0
+clasificador_webcam_yolo.py -> clasifica en vivo con la camara web
+
+COMO FUNCIONA
+Al iniciar, deja el recuadro VACIO 2 segundos: guarda el fondo para saber cuando NO hay
+objeto (si mueves la camara o cambia la luz, vacia el recuadro y presiona f).
+Luego pon UN objeto dentro del recuadro del centro. El recuadro se pinta del color del
+tacho y muestra la confianza (ej. "BLANCO - Plasticos 87%"). Si la confianza es
+menor a 55% dice "Acerca un objeto al recuadro". A la izquierda: los 7 colores.
+Teclas: q = salir | s = guardar captura en capturas/ | f = volver a tomar el fondo
+
+1) MAC (Intel)
+   cd app_camara
+   python3.11 -m venv .venv            (si ya tienes tu .venv, usa ese)
+   source .venv/bin/activate
+   pip install -r requirements_mac.txt
+   python clasificador_webcam_yolo.py
+   -> Si no abre la camara: Ajustes del Sistema > Privacidad y seguridad > Camara > activar Terminal
+
+2) WINDOWS
+   cd app_camara
+   py -3.11 -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements_windows_raspberry.txt
+   python clasificador_webcam_yolo.py
+
+3) RASPBERRY PI 4 (Raspberry Pi OS 64 bits, con escritorio)
+   cd app_camara
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements_windows_raspberry.txt
+   python clasificador_webcam_yolo.py --suavizado 4
+   (si la camara no es la 0: --camara 1)
+
+OPCIONES
+   --modelo  ruta del .pt          (por defecto modelos/clasificador.pt)
+   --camara  numero de camara      (por defecto 0)
+   --umbral  confianza minima      (por defecto 0.55)
+   --suavizado frames promediados  (por defecto 8)
+   --recuadro tamano del recuadro  (por defecto 0.6)
+   --umbral_fondo diferencia con el fondo para decir que hay objeto (por defecto 14;
+                 si con objeto dice "Sin objeto", bajalo a 8)
+
+CONSEJOS PARA QUE ACIERTE MAS
+   Un solo objeto, cerca y llenando el recuadro, fondo liso y buena luz.

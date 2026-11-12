@@ -1,0 +1,7 @@
+comparacion,fotos,casi_iguales_pHash_<=4,pct_<=4,parecidas_<=8
+val vs train_nuevas (v9),2100,48,2.29,60
+val vs train_orig (dataset v1),2100,212,10.10,259
+test vs train_nuevas (v9),2100,39,1.86,48
+test vs train_orig (dataset v1),2100,214,10.19,271
+examen vs train_nuevas (v9),1455,0,0.00,1
+examen vs train_orig (dataset v1),1455,35,2.41,47

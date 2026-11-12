@@ -1,0 +1,6 @@
+# Windows o Raspberry Pi 4 (64 bits) - Python 3.10 a 3.12
+torch
+torchvision
+numpy<2
+opencv-python
+ultralytics>=8.3,<8.4
