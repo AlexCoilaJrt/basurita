@@ -1,33 +1,39 @@
----
-title: ReciclaIA
-emoji: ♻️
-colorFrom: green
-colorTo: blue
-sdk: gradio
-sdk_version: 5.50.0
-python_version: "3.11"
-app_file: app.py
-pinned: false
-license: agpl-3.0
-short_description: Clasifica residuos en los 7 tachos de la NTP 900.058
----
-
 # ReciclaIA: versión web
 
-Sube o toma una foto de un residuo y la página te dice en qué tacho va según la **NTP 900.058** (Perú).
-Usa el mismo modelo del proyecto, **YOLO11n-cls "v9 limpio"** (`clasificador.pt`, md5
-`35b25249faee5906f9eec61fd3787aa0`), en CPU. También aplica la misma regla de decisión y los mismos textos que la app móvil.
+Hay dos versiones que hacen lo mismo, con el mismo modelo (**YOLO11n-cls "v9 limpio"**), la misma regla de decisión
+que la app móvil y los mismos textos de cada tacho:
 
-- **Pestañas:** *Subir foto* y *Cámara* (webcam de la PC o cámara del celular).
-- **Resultado:** tarjeta del color del tacho, con el % de confianza, el estado y qué va / qué no va / un consejo, más un gráfico de barras con los 7 tachos.
-  - 70 % o más: **confirmado**.
-  - Entre 40 y 70 %: **dudando** (muestra las 2 opciones más probables).
-  - Menos de 40 %: **no estoy seguro**.
-- **"Recortar al centro (70 %)":** imita el recuadro de la app móvil.
+- **70 % o más:** confirmado.
+- **40–70 %:** dudando (muestra las 2 opciones más probables).
+- **Menos de 40 %:** no estoy seguro.
 
-Código completo, app Android y versión para Raspberry Pi: https://github.com/AlexCoilaJrt/basurita
+| | `navegador/` (pública) | `app.py` (local) |
+|---|---|---|
+| Dónde corre el modelo | En el navegador del usuario (ONNX Runtime Web) | En tu computadora (Python + PyTorch) |
+| Link | **https://alexcoilajrt.github.io/basurita/** (GitHub Pages, gratis) | http://127.0.0.1:7860 |
+| Cámara | En vivo, con recuadro central (promedio de 5 cuadros) | Foto desde la webcam |
+| Instalación | Ninguna: abrir el link | Python 3.11 y `requirements.txt` |
 
-## Ejecutar en la computadora
+## Versión pública (`navegador/`)
+Página estática: `index.html`, `preproceso.js`, `clasificador.onnx` (el `.pt` convertido a ONNX) y `clases.json`
+(nombres de las clases leídos del modelo). La foto no se envía a ningún servidor.
+
+- **Se publica sola:** cada push a `main` la publica con `.github/workflows/pagina_web.yml`.
+  La primera vez hay que activar *Settings → Pages → Source: GitHub Actions* en el repositorio.
+- **Mismo resultado que el `.pt`:** `preproceso.js` reproduce el preprocesamiento de Ultralytics (escalado
+  BILINEAR de PIL hasta 224 en el lado corto, recorte central, RGB 0..1). Resultados de la verificación:
+  - 200 imágenes del examen (cuadradas y rectangulares): los píxeles difieren como máximo en 1/255 y el color
+    coincide con `clasificador.pt` en **200 de 200**.
+  - En Chrome real: **28 de 28** iguales, con una diferencia de confianza menor a 1 punto.
+- **Probarla en la computadora:** necesita un servidor, porque abrir el archivo con doble clic no funciona:
+  ```bash
+  cd web/navegador
+  python3 -m http.server 8000      # abre http://localhost:8000
+  ```
+- **Si cambias de modelo:** `python herramientas/exportar_web.py` vuelve a generar `clasificador.onnx` y `clases.json`.
+
+## Versión local con Gradio (`app.py`)
+Mac:
 ```bash
 cd web
 python3.11 -m venv .venv
@@ -35,11 +41,16 @@ source .venv/bin/activate
 pip install -r requirements.txt
 python app.py
 ```
-Abre http://127.0.0.1:7860. Para detenerlo, presiona Ctrl+C.
+Windows (PowerShell):
+```powershell
+cd web
+py -3.11 -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+Abre http://127.0.0.1:7860 y detenla con Ctrl+C. `clasificador.pt` es una copia de `modelos/clasificador.pt`
+(si falta, usa `../modelos/clasificador.pt`).
 
-| Archivo | Qué es |
-|---|---|
-| `app.py` | La interfaz (Gradio). Carga el modelo una sola vez al iniciar |
-| `clasificador.pt` | Copia de `modelos/clasificador.pt` (si falta, usa `../modelos/clasificador.pt`) |
-| `requirements.txt` | PyTorch solo CPU, Ultralytics y Gradio |
-| `packages.txt` | Librerías del sistema que OpenCV necesita en Hugging Face Spaces |
+> Nota: Hugging Face Spaces ahora exige la suscripción de pago PRO para alojar apps de Gradio, por eso la versión
+> pública es la del navegador (GitHub Pages es gratis).

@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReciclaIA</title>
+<meta name="description" content="Clasifica residuos en los 7 tachos de la NTP 900.058 con la cámara o una foto. El modelo corre en tu navegador.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♻️</text></svg>">
+<style>
+:root{
+  --fondo:#F4F5F2; --tarjeta:#FFFFFF; --texto:#1B1D1A; --suave:#5E635B; --borde:#DADDD6;
+  --acento:#2E7D32; --acento-texto:#FFFFFF; --pista:#E7E9E4; --duda:#FFF3E0; --nada:#ECEFF1;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --fondo:#121412; --tarjeta:#1C1F1C; --texto:#E8EAE6; --suave:#A3A89F; --borde:#30352F;
+    --acento:#66BB6A; --acento-texto:#0B1F0C; --pista:#2A2E29; --duda:#3A2E1C; --nada:#262B2E;
+  }
+}
+:root[data-theme="dark"]{
+  --fondo:#121412; --tarjeta:#1C1F1C; --texto:#E8EAE6; --suave:#A3A89F; --borde:#30352F;
+  --acento:#66BB6A; --acento-texto:#0B1F0C; --pista:#2A2E29; --duda:#3A2E1C; --nada:#262B2E;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--fondo);color:var(--texto);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:20px 16px 48px}
+h1{margin:0;font-size:30px;letter-spacing:-.5px}
+.sub{margin:4px 0 20px;color:var(--suave)}
+.rejilla{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start}
+@media (max-width:800px){.rejilla{grid-template-columns:1fr}}
+.caja{background:var(--tarjeta);border:1px solid var(--borde);border-radius:16px;padding:16px}
+.pestanas{display:flex;gap:6px;margin-bottom:12px}
+.pestanas button{flex:1;padding:10px;border-radius:10px;border:1px solid var(--borde);background:transparent;color:var(--texto);font:inherit;font-weight:600;cursor:pointer}
+.pestanas button[aria-selected="true"]{background:var(--acento);color:var(--acento-texto);border-color:var(--acento)}
+.zona{position:relative;border:2px dashed var(--borde);border-radius:12px;min-height:260px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--suave);cursor:pointer;overflow:hidden;background:var(--pista)}
+.zona.encima{border-color:var(--acento)}
+.zona img{max-width:100%;max-height:420px;display:block}
+.video{position:relative;border-radius:12px;overflow:hidden;background:#000;aspect-ratio:4/3}
+.video video{width:100%;height:100%;object-fit:cover;display:block}
+.video .espejo{transform:scaleX(-1)}
+.recuadro{position:absolute;border:4px solid #fff;border-radius:14px;box-shadow:0 0 0 9999px rgba(0,0,0,.35);transition:border-color .2s;pointer-events:none}
+.aviso{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;padding:16px;text-align:center}
+.fila-botones{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.boton{padding:9px 14px;border-radius:10px;border:1px solid var(--borde);background:var(--tarjeta);color:var(--texto);font:inherit;cursor:pointer}
+.boton.primario{background:var(--acento);color:var(--acento-texto);border-color:var(--acento);font-weight:600}
+label.casilla{display:flex;gap:8px;align-items:center;margin-top:12px;cursor:pointer}
+.vista{display:flex;gap:12px;align-items:center;margin-top:12px;color:var(--suave);font-size:14px}
+.vista canvas{width:96px;height:96px;border-radius:10px;border:1px solid var(--borde);background:var(--pista)}
+.tarjeta{border-radius:16px;padding:20px 22px;border:1px solid rgba(0,0,0,.12);transition:background .25s,color .25s}
+.estado{font-size:15px;opacity:.9;margin-bottom:4px}
+.titulo{font-size:28px;font-weight:800;line-height:1.2;margin-bottom:10px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:520px){.cols{grid-template-columns:1fr}.titulo{font-size:23px}.barra .nombre{width:96px}}
+.cols ul{margin:4px 0 0 18px;padding:0}
+.consejo{margin:12px 0 0;font-weight:600}
+h2{font-size:16px;margin:18px 0 8px}
+.barra{display:flex;align-items:center;gap:10px;margin:6px 0}
+.barra .nombre{width:112px;flex:none}
+.barra .pista{flex:1;height:16px;border-radius:8px;background:var(--pista);overflow:hidden}
+.barra .relleno{height:100%;border-radius:8px;transition:width .25s}
+.barra .pct{width:66px;flex:none;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.acerca{margin-top:20px}
+.acerca ul{margin:6px 0 0 18px;padding:0}
+a{color:var(--acento)}
+.cargando{color:var(--suave)}
+</style>
+</head>
+<body>
+<main>
+  <h1>♻️ ReciclaIA</h1>
+  <p class="sub">Toma o sube una foto de un residuo y te digo en qué tacho va según la <b>NTP 900.058</b>.
+    El modelo corre en tu navegador: la foto no se envía a ningún servidor.</p>
+
+  <div class="rejilla">
+    <section class="caja">
+      <div class="pestanas" role="tablist">
+        <button role="tab" aria-selected="true" data-pestana="foto">📁 Subir foto</button>
+        <button role="tab" aria-selected="false" data-pestana="camara">📷 Cámara</button>
+      </div>
+
+      <div id="panel-foto">
+        <div class="zona" id="zona" tabindex="0">
+          <div id="zona-texto">Toca aquí o arrastra una foto</div>
+        </div>
+        <input type="file" id="archivo" accept="image/*" hidden>
+        <label class="casilla"><input type="checkbox" id="recortar"> Recortar al centro (70 %), como el recuadro de la app móvil</label>
+      </div>
+
+      <div id="panel-camara" hidden>
+        <div class="video" id="marco">
+          <video id="video" playsinline muted></video>
+          <div class="recuadro" id="recuadro" hidden></div>
+          <div class="aviso" id="aviso-camara">Toca “Encender cámara”</div>
+        </div>
+        <div class="fila-botones">
+          <button class="boton primario" id="encender">Encender cámara</button>
+          <button class="boton" id="girar" hidden>🔄 Cambiar cámara</button>
+          <button class="boton" id="pausar" hidden>⏸ Pausar</button>
+        </div>
+        <p class="sub" style="margin:10px 0 0">Pon el residuo dentro del recuadro, de cerca y con buena luz.
+          Se analiza en vivo (promedio de los últimos 5 cuadros).</p>
+      </div>
+
+      <div class="vista"><canvas id="lo-que-ve" width="224" height="224"></canvas><span>Lo que ve el modelo (224×224)</span></div>
+    </section>
+
+    <section class="caja">
+      <div id="resultado"><p class="cargando" id="estado-modelo">Cargando el modelo…</p></div>
+      <h2>Probabilidad de cada tacho</h2>
+      <div id="barras"></div>
+    </section>
+  </div>
+
+  <section class="caja acerca">
+    <h2 style="margin-top:0">Acerca del modelo</h2>
+    <ul>
+      <li><b>Modelo:</b> YOLO11n-cls (Ultralytics), versión final <i>v9 limpio</i>, <b>1,54 M parámetros</b>, entrada 224×224.</li>
+      <li><b>Acierto:</b> <b>89,3 %</b> en la prueba limpia.</li>
+      <li><b>Clases</b> (leídas del modelo): <span id="lista-clases">…</span></li>
+      <li><b>Regla de decisión</b> (igual que la app móvil): 70 % o más = confirmado; 40–70 % = dudando (muestra las 2 opciones más probables); menos de 40 % = no estoy seguro.</li>
+      <li>Corre en el navegador con ONNX Runtime Web (el mismo modelo convertido a ONNX; da el mismo color que <code>clasificador.pt</code>).</li>
+      <li>Código, app Android y versión para Raspberry Pi: <a href="https://github.com/AlexCoilaJrt/basurita">github.com/AlexCoilaJrt/basurita</a></li>
+    </ul>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<script src="preproceso.js"></script>
+<script>
+"use strict";
+const CONF_CONFIRMADO = 0.70, CONF_DUDA = 0.40, FRACCION = 0.70, CUADROS = 5;
+// Los 7 tachos (copiados de app_movil/lib/tachos.dart para que la web y la app digan lo mismo)
+const TACHOS = {
+  amarillo: {color: "AMARILLO", residuo: "Metales", icono: "🥫", fondo: "#FFD600", texto: "#000000",
+    si: ["Latas de bebida y de conserva", "Tapas metálicas", "Papel aluminio limpio", "Chatarra pequeña"],
+    no: ["Aerosoles y pilas (van al Rojo)", "Latas con restos de comida"],
+    consejo: "Enjuaga las latas y aplástalas."},
+  azul: {color: "AZUL", residuo: "Papel y cartón", icono: "📄", fondo: "#1565C0", texto: "#FFFFFF",
+    si: ["Hojas, cuadernos y sobres", "Periódicos y revistas", "Cajas de cartón"],
+    no: ["Papel higiénico o servilletas usadas (Negro)", "Papel con grasa o comida (Negro)", "Vasos de papel plastificados (Negro)"],
+    consejo: "Dobla las cajas y mantenlo seco."},
+  blanco: {color: "BLANCO", residuo: "Plásticos", icono: "🧴", fondo: "#F5F5F5", texto: "#000000",
+    si: ["Botellas PET", "Envases de shampoo y detergente", "Tapas de plástico", "Bolsas y láminas limpias"],
+    no: ["Tecnopor (Negro)", "Envolturas metalizadas de snacks (Negro)", "Plástico con restos de comida"],
+    consejo: "Enjuaga las botellas y aplástalas."},
+  gris: {color: "GRIS", residuo: "Vidrio", icono: "🍾", fondo: "#9E9E9E", texto: "#000000",
+    si: ["Botellas de vidrio", "Frascos", "Envases de vidrio"],
+    no: ["Focos y fluorescentes (Rojo)", "Cerámica y porcelana (Negro)", "Espejos"],
+    consejo: "Sin tapa y enjuagado. Cuidado con los bordes rotos."},
+  marron: {color: "MARRÓN", residuo: "Orgánicos", icono: "🍎", fondo: "#6D4C41", texto: "#FFFFFF",
+    si: ["Restos de frutas y verduras", "Cáscaras y restos de comida", "Hojas y ramas", "Café y bolsitas de té"],
+    no: ["Bolsas o envases (sepáralos)", "Aceite usado (llévalo a un punto de acopio)"],
+    consejo: "Sin bolsas ni envases."},
+  negro: {color: "NEGRO", residuo: "Generales (no aprovechables)", icono: "🗑️", fondo: "#212121", texto: "#FFFFFF",
+    si: ["Papel higiénico y servilletas usadas", "Tecnopor", "Envolturas de snacks", "Colillas", "Cerámica rota"],
+    no: ["Pilas y medicinas (Rojo)", "Residuos reciclables limpios (usa su tacho)"],
+    consejo: "Si se puede reciclar, no va aquí."},
+  rojo: {color: "ROJO", residuo: "Peligrosos", icono: "☣️", fondo: "#C62828", texto: "#FFFFFF",
+    si: ["Pilas y baterías", "Medicinas vencidas", "Jeringas, guantes y mascarillas usadas", "Aerosoles", "Focos, fluorescentes y termómetros"],
+    no: ["Basura común (no llenes este tacho con otros residuos)"],
+    consejo: "Manipula con cuidado. Las jeringas, en un envase rígido."},
+};
+const $ = (id) => document.getElementById(id);
+let sesion = null, claves = [], nombres = [];
+
+function clave(nombre) {
+  const n = nombre.toLowerCase().replace("ó", "o");
+  return Object.keys(TACHOS).find((k) => n.startsWith(k));
+}
+const lista = (items) => items.map((t) => `<li>${t}</li>`).join("");
+
+// ---------- Modelo (se carga una sola vez) ----------
+async function cargarModelo() {
+  try {
+    ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/";
+    ort.env.wasm.numThreads = 1; // GitHub Pages no permite hilos compartidos; con 1 hilo va igual de bien
+    const info = await (await fetch("clases.json")).json();
+    nombres = info.clases;
+    claves = nombres.map(clave);
+    if (claves.includes(undefined)) throw new Error("Clase no reconocida: " + nombres.join(", "));
+    $("lista-clases").textContent = nombres.join(", ");
+    sesion = await ort.InferenceSession.create("clasificador.onnx", {executionProviders: ["wasm"]});
+    $("estado-modelo").textContent = "Modelo listo. Sube una foto o enciende la cámara.";
+  } catch (e) {
+    $("estado-modelo").textContent = "No se pudo cargar el modelo: " + e.message;
+    console.error(e);
+  }
+}
+
+async function clasificar(canvas) {
+  const ctx = canvas.getContext("2d", {willReadFrequently: true});
+  const datos = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const tensor = Preproceso.prepararTensor(datos.data, canvas.width, canvas.height);
+  const entrada = new ort.Tensor("float32", tensor, [1, 3, Preproceso.LADO, Preproceso.LADO]);
+  const salida = await sesion.run({[sesion.inputNames[0]]: entrada});
+  return Array.from(salida[sesion.outputNames[0]].data);
+}
+
+// Copia la region de la imagen a un canvas (lo que ve el modelo antes de escalar) y la muestra en miniatura
+function copiarRegion(fuente, w, h, region) {
+  const c = document.createElement("canvas");
+  c.width = region.ancho; c.height = region.alto;
+  c.getContext("2d", {willReadFrequently: true}).drawImage(fuente, region.x, region.y, region.ancho, region.alto, 0, 0, region.ancho, region.alto);
+  const v = $("lo-que-ve"), vc = v.getContext("2d");
+  const lado = Math.min(region.ancho, region.alto);
+  vc.imageSmoothingQuality = "high";
+  vc.drawImage(c, (region.ancho - lado) / 2, (region.alto - lado) / 2, lado, lado, 0, 0, v.width, v.height);
+  return c;
+}
+
+// ---------- Resultado ----------
+function mostrar(probs) {
+  const orden = probs.map((p, i) => i).sort((a, b) => probs[b] - probs[a]);
+  const [i1, i2] = orden, t = TACHOS[claves[i1]], conf = probs[i1];
+  let estado, fondo, texto, titulo, detalle;
+  if (conf >= CONF_CONFIRMADO) {
+    estado = "✅ Confirmado"; fondo = t.fondo; texto = t.texto;
+    titulo = `${t.icono} Tacho ${t.color}: ${t.residuo}`;
+    detalle = `<div class="cols"><div><b>Sí va</b><ul>${lista(t.si)}</ul></div><div><b>No va</b><ul>${lista(t.no)}</ul></div></div>` +
+      `<p class="consejo">💡 ${t.consejo}</p>`;
+  } else if (conf >= CONF_DUDA) {
+    const t2 = TACHOS[claves[i2]];
+    estado = "🤔 Dudando"; fondo = "var(--duda)"; texto = "var(--texto)";
+    titulo = `¿${t.residuo} o ${t2.residuo}?`;
+    detalle = `<p style="margin:0">Puede ir al tacho <b>${t.color}</b> (${Math.round(conf * 100)} %) o al <b>${t2.color}</b> ` +
+      `(${Math.round(probs[i2] * 100)} %). Acerca el objeto, céntralo o usa mejor luz.</p>`;
+  } else {
+    estado = "❓ No estoy seguro"; fondo = "var(--nada)"; texto = "var(--texto)";
+    titulo = "No estoy seguro";
+    detalle = `<p style="margin:0">Acerca el objeto, que ocupe el centro de la foto, o usa mejor luz.</p>`;
+  }
+  $("resultado").innerHTML = `<div class="tarjeta" style="background:${fondo};color:${texto}">` +
+    `<div class="estado">${estado} · ${(conf * 100).toFixed(1)} % de confianza</div><div class="titulo">${titulo}</div>${detalle}</div>`;
+  $("barras").innerHTML = orden.map((i) => {
+    const ti = TACHOS[claves[i]], color = ti.color === "BLANCO" ? "#BDBDBD" : ti.fondo;
+    const nombre = ti.color.charAt(0) + ti.color.slice(1).toLowerCase();
+    return `<div class="barra"><span class="nombre">${ti.icono} ${nombre}</span><span class="pista">` +
+      `<span class="relleno" style="display:block;width:${(probs[i] * 100).toFixed(1)}%;background:${color}"></span></span>` +
+      `<span class="pct">${(probs[i] * 100).toFixed(1)} %</span></div>`;
+  }).join("");
+  // En la camara, el recuadro toma el color del tacho cuando esta confirmado
+  $("recuadro").style.borderColor = conf >= CONF_CONFIRMADO ? (t.color === "BLANCO" ? "#FFFFFF" : t.fondo) : "#FFFFFF";
+}
+
+// ---------- Subir foto ----------
+let ultimaImagen = null;
+async function analizarImagen(img) {
+  if (!sesion) return;
+  ultimaImagen = img;
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const region = $("recortar").checked ? Preproceso.recuadroCentral(w, h, FRACCION) : {x: 0, y: 0, ancho: w, alto: h};
+  mostrar(await clasificar(copiarRegion(img, w, h, region)));
+}
+function abrirArchivo(archivo) {
+  if (!archivo || !archivo.type.startsWith("image/")) return;
+  const img = new Image();
+  img.onload = () => {
+    $("zona").innerHTML = ""; $("zona").appendChild(img);
+    analizarImagen(img);
+  };
+  img.onerror = () => { $("zona-texto").textContent = "No se pudo abrir esa imagen."; };
+  img.src = URL.createObjectURL(archivo);
+}
+$("zona").addEventListener("click", () => $("archivo").click());
+$("zona").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") $("archivo").click(); });
+$("archivo").addEventListener("change", (e) => { abrirArchivo(e.target.files[0]); e.target.value = ""; });
+$("zona").addEventListener("dragover", (e) => { e.preventDefault(); $("zona").classList.add("encima"); });
+$("zona").addEventListener("dragleave", () => $("zona").classList.remove("encima"));
+$("zona").addEventListener("drop", (e) => { e.preventDefault(); $("zona").classList.remove("encima"); abrirArchivo(e.dataTransfer.files[0]); });
+document.addEventListener("paste", (e) => {
+  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+  if (item) abrirArchivo(item.getAsFile());
+});
+$("recortar").addEventListener("change", () => { if (ultimaImagen) analizarImagen(ultimaImagen); });
+
+// ---------- Camara en vivo ----------
+let flujo = null, frontal = false, pausado = false, enMarcha = false;
+const historial = [];
+function ubicarRecuadro() {
+  const v = $("video"), marco = $("marco").getBoundingClientRect();
+  if (!v.videoWidth) return;
+  // El video se muestra con object-fit: cover; el recuadro es el 70 % del lado corto del video
+  const escala = Math.max(marco.width / v.videoWidth, marco.height / v.videoHeight);
+  const lado = FRACCION * Math.min(v.videoWidth, v.videoHeight) * escala;
+  Object.assign($("recuadro").style, {width: lado + "px", height: lado + "px",
+    left: (marco.width - lado) / 2 + "px", top: (marco.height - lado) / 2 + "px"});
+  $("recuadro").hidden = false;
+}
+async function encender() {
+  apagar();
+  try {
+    flujo = await navigator.mediaDevices.getUserMedia({video: {facingMode: frontal ? "user" : "environment", width: {ideal: 1280}, height: {ideal: 720}}, audio: false});
+  } catch (e) {
+    $("aviso-camara").textContent = "No se pudo usar la cámara (" + e.name + "). Revisa el permiso del navegador.";
+    return;
+  }
+  const v = $("video");
+  v.srcObject = flujo; await v.play();
+  const ajustes = flujo.getVideoTracks()[0].getSettings();
+  v.classList.toggle("espejo", ajustes.facingMode === "user" || (!ajustes.facingMode && frontal));
+  $("aviso-camara").hidden = true; $("girar").hidden = false; $("pausar").hidden = false;
+  $("encender").textContent = "Apagar cámara";
+  ubicarRecuadro();
+  historial.length = 0; pausado = false; $("pausar").textContent = "⏸ Pausar";
+  if (!enMarcha) bucle();
+}
+function apagar() {
+  if (flujo) flujo.getTracks().forEach((t) => t.stop());
+  flujo = null; $("video").srcObject = null;
+  $("recuadro").hidden = true; $("aviso-camara").hidden = false; $("aviso-camara").textContent = "Toca “Encender cámara”";
+  $("girar").hidden = true; $("pausar").hidden = true; $("encender").textContent = "Encender cámara";
+}
+async function bucle() {
+  enMarcha = true;
+  while (flujo) {
+    const v = $("video");
+    if (!pausado && sesion && v.videoWidth) {
+      const region = Preproceso.recuadroCentral(v.videoWidth, v.videoHeight, FRACCION);
+      const probs = await clasificar(copiarRegion(v, v.videoWidth, v.videoHeight, region));
+      historial.push(probs); if (historial.length > CUADROS) historial.shift();
+      mostrar(probs.map((_, i) => historial.reduce((s, p) => s + p[i], 0) / historial.length));
+    }
+    await new Promise((r) => requestAnimationFrame(r));
+  }
+  enMarcha = false;
+}
+$("encender").addEventListener("click", () => (flujo ? apagar() : encender()));
+$("girar").addEventListener("click", () => { frontal = !frontal; encender(); });
+$("pausar").addEventListener("click", () => { pausado = !pausado; $("pausar").textContent = pausado ? "▶ Seguir" : "⏸ Pausar"; });
+window.addEventListener("resize", ubicarRecuadro);
+$("video").addEventListener("loadedmetadata", ubicarRecuadro);
+
+// ---------- Pestanas ----------
+document.querySelectorAll("[data-pestana]").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("[data-pestana]").forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+  const camara = b.dataset.pestana === "camara";
+  $("panel-foto").hidden = camara; $("panel-camara").hidden = !camara;
+  if (!camara) apagar();
+}));
+
+cargarModelo();
+</script>
+</body>
+</html>

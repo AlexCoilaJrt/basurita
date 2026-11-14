@@ -1,0 +1,13 @@
+{
+ "modelo": "v9 limpio",
+ "md5_pt": "35b25249faee5906f9eec61fd3787aa0",
+ "clases": [
+  "amarillo_metales",
+  "azul_papel_carton",
+  "blanco_plasticos",
+  "gris_vidrio",
+  "marron_organicos",
+  "negro_generales",
+  "rojo_peligrosos"
+ ]
+}

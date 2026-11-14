@@ -63,7 +63,7 @@ detecciondebasura/
 ├── herramientas/   # evaluar_rubrica.py (nota con la fórmula del docente), verificar_examen.py, reconstruir_garbage_v1i.py
 ├── app_camara/     # programa de cámara de la entrega (recuadro central, detecta "sin objeto"); ver su LEEME.txt
 ├── app_movil/      # app Android (Flutter) con el mismo modelo en TFLite; ver app_movil/README.md
-├── web/           # versión web (Gradio, lista para Hugging Face Spaces); ver web/README.md
+├── web/           # navegador/: página pública (GitHub Pages); app.py: versión Gradio local; ver web/README.md
 ├── modelos/        # clasificador.pt = v9 limpio (en git, ~3 MB); yolov8s-worldv2.pt se descarga la primera vez
 ├── datos/          # recolectadas/<Color>/ (tecla 'c') y pruebas/ (fuera de git)
 ├── capturas/       # fotos guardadas con la tecla 's'
@@ -102,14 +102,20 @@ Requiere Android 7 o más nuevo. Si ya tenías una versión anterior, se instala
 
 ## Despliegue web
 
-Demo pública: **[ReciclaIA en Hugging Face Spaces](https://huggingface.co/spaces/USUARIO/reciclaia)** *(link pendiente)*
+### 🌐 Demo pública: **https://alexcoilajrt.github.io/basurita/**
 
-Página en Gradio (`web/`) con dos pestañas: *Subir foto* y *Cámara* (webcam de la PC o cámara del celular).
-Usa el mismo modelo (`web/clasificador.pt` = v9 limpio), la misma regla que la app móvil (70 % o más = confirmado,
-40–70 % = dudando, menos de 40 % = no seguro) y los mismos textos de cada tacho. Funciona en CPU y sin internet
-una vez instalada. Tiene su propio entorno (`web/.venv`), separado del detector.
+Se abre en cualquier navegador, en PC o celular, sin instalar nada. Tiene dos pestañas:
+- **Subir foto.**
+- **Cámara en vivo**, con un recuadro central como el de la app móvil.
 
-Requisito: **Python 3.11** (64 bits). No necesita git.
+El modelo corre **dentro del navegador**: es el mismo `clasificador.pt` convertido a ONNX, y la foto no se envía a
+ningún servidor. Usa la misma regla que la app móvil (70 % o más = confirmado, 40–70 % = dudando, menos de 40 % = no
+seguro) y los mismos textos de cada tacho. Verificado: da el mismo color que `clasificador.pt` en 200 de 200 imágenes
+del examen. Está en `web/navegador/` y se publica sola en GitHub Pages con cada push a `main`
+(`.github/workflows/pagina_web.yml`). Detalles en `web/README.md`.
+
+También hay una versión con **Gradio** (`web/app.py`) para ejecutarla en la computadora. Requisito:
+**Python 3.11** (64 bits). Tiene su propio entorno (`web/.venv`), separado del detector.
 
 ### Mac
 ```bash
@@ -134,7 +140,6 @@ después basta con activar el entorno y `python app.py`). Para detenerla: Ctrl+C
 - La pestaña *Cámara* pide permiso al navegador: acéptalo. En Windows, si no hay imagen:
   *Configuración → Privacidad y seguridad → Cámara* → permitir a las aplicaciones de escritorio.
 - Si PowerShell no deja ejecutar `activate`: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
-- Para publicarla con link público gratis (Hugging Face Spaces), ver `web/README.md`.
 
 ## Flujo de trabajo
 
