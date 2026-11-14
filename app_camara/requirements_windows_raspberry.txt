@@ -1,6 +1,10 @@
-# Windows o Raspberry Pi 4 (64 bits) - Python 3.10 a 3.12
-torch
-torchvision
-numpy<2
+# Windows o Raspberry Pi 4 (64 bits)
+# Python 3.10 o 3.11 (recomendado): las mismas versiones probadas en la Mac
+torch==2.2.2; python_version < "3.12"
+torchvision==0.17.2; python_version < "3.12"
+numpy<2; python_version < "3.12"
+# Python 3.12 o mas nuevo (por ejemplo, Raspberry Pi OS Trixie trae 3.13)
+torch>=2.6; python_version >= "3.12"
+torchvision>=0.21; python_version >= "3.12"
 opencv-python
 ultralytics>=8.3,<8.4

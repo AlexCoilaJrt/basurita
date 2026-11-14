@@ -1,6 +1,6 @@
 # ReciclaIA – Detector de residuos NTP 900.058 (7 colores)
 
-Detección de residuos en tiempo real con la webcam (Ultralytics), en Mac/Windows, Raspberry Pi y celular Android.
+Detección de residuos en tiempo real con la webcam (Ultralytics), en Mac/Windows, Raspberry Pi, celular Android y web.
 Cada objeto se clasifica según el código de colores de la **NTP 900.058** (Perú).
 
 **Cómo funciona:** YOLO-World (preentrenado, sin modificar) **ubica** cada objeto y nuestro
@@ -63,6 +63,7 @@ detecciondebasura/
 ├── herramientas/   # evaluar_rubrica.py (nota con la fórmula del docente), verificar_examen.py, reconstruir_garbage_v1i.py
 ├── app_camara/     # programa de cámara de la entrega (recuadro central, detecta "sin objeto"); ver su LEEME.txt
 ├── app_movil/      # app Android (Flutter) con el mismo modelo en TFLite; ver app_movil/README.md
+├── web/           # versión web (Gradio, lista para Hugging Face Spaces); ver web/README.md
 ├── modelos/        # clasificador.pt = v9 limpio (en git, ~3 MB); yolov8s-worldv2.pt se descarga la primera vez
 ├── datos/          # recolectadas/<Color>/ (tecla 'c') y pruebas/ (fuera de git)
 ├── capturas/       # fotos guardadas con la tecla 's'
@@ -70,6 +71,69 @@ detecciondebasura/
 ├── instalar_pi.sh / iniciar_pi.sh                  # instalar e iniciar en la Raspberry Pi
 └── requirements.txt
 ```
+
+## App móvil (Android)
+
+La app está en `app_movil/` (Flutter). Usa el mismo modelo convertido a TFLite y funciona **sin internet**.
+Detalle de las pantallas y de cómo funciona: `app_movil/README.md`.
+
+### Opción 1: instalar el APK (lo más fácil)
+1. Descarga **`ReciclaIA_v9_limpio.apk`** desde [Releases](https://github.com/AlexCoilaJrt/basurita/releases/latest)
+   en el celular (o pásalo por cable, Drive o WhatsApp).
+2. Ábrelo. Android pedirá permitir *"instalar apps de origen desconocido"* para el navegador o el gestor de archivos: acepta.
+3. Abre la app (se llama **Basurita**) y permite el uso de la cámara.
+4. Apunta al residuo dentro del recuadro: con 70 % o más de confianza el recuadro se pinta del color del tacho.
+
+Requiere Android 7 o más nuevo. Si ya tenías una versión anterior, se instala encima.
+
+### Opción 2: compilarla desde el código (Mac o Windows)
+1. Instala [Flutter](https://docs.flutter.dev/get-started/install) y Android Studio (incluye el SDK de Android);
+   revisa con `flutter doctor`.
+2. En el celular: *Ajustes → Acerca del teléfono* → toca 7 veces *Número de compilación* y, en
+   *Opciones de desarrollador*, activa *Depuración USB*. Conéctalo por cable.
+3. En la Terminal (Mac) o PowerShell (Windows):
+   ```bash
+   cd app_movil
+   flutter pub get
+   flutter run --release          # la instala en el celular conectado
+   flutter build apk --release    # o genera el APK en build/app/outputs/flutter-apk/app-release.apk
+   ```
+
+## Despliegue web
+
+Demo pública: **[ReciclaIA en Hugging Face Spaces](https://huggingface.co/spaces/USUARIO/reciclaia)** *(link pendiente)*
+
+Página en Gradio (`web/`) con dos pestañas: *Subir foto* y *Cámara* (webcam de la PC o cámara del celular).
+Usa el mismo modelo (`web/clasificador.pt` = v9 limpio), la misma regla que la app móvil (70 % o más = confirmado,
+40–70 % = dudando, menos de 40 % = no seguro) y los mismos textos de cada tacho. Funciona en CPU y sin internet
+una vez instalada. Tiene su propio entorno (`web/.venv`), separado del detector.
+
+Requisito: **Python 3.11** (64 bits). No necesita git.
+
+### Mac
+```bash
+cd web
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+### Windows (PowerShell)
+```powershell
+cd web
+py -3.11 -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+Abre **http://127.0.0.1:7860** en el navegador (la instalación tarda unos minutos solo la primera vez;
+después basta con activar el entorno y `python app.py`). Para detenerla: Ctrl+C.
+- La pestaña *Cámara* pide permiso al navegador: acéptalo. En Windows, si no hay imagen:
+  *Configuración → Privacidad y seguridad → Cámara* → permitir a las aplicaciones de escritorio.
+- Si PowerShell no deja ejecutar `activate`: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+- Para publicarla con link público gratis (Hugging Face Spaces), ver `web/README.md`.
 
 ## Flujo de trabajo
 

@@ -1,0 +1,12 @@
+# ReciclaIA web: solo CPU (sin CUDA ni TensorFlow)
+--extra-index-url https://download.pytorch.org/whl/cpu
+# Python 3.10-3.11 (Mac Intel y Hugging Face Spaces): PyTorch 2.2.2 es la ultima para Mac Intel
+torch==2.2.2; python_version < "3.12"
+torchvision==0.17.2; python_version < "3.12"
+numpy<2; python_version < "3.12"
+# Python 3.12 o mas nuevo
+torch>=2.6; python_version >= "3.12"
+torchvision>=0.21; python_version >= "3.12"
+ultralytics>=8.3,<8.4
+gradio>=5,<6
+pillow
