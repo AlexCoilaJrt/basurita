@@ -78,8 +78,9 @@ La app está en `app_movil/` (Flutter). Usa el mismo modelo convertido a TFLite 
 Detalle de las pantallas y de cómo funciona: `app_movil/README.md`.
 
 ### Opción 1: instalar el APK (lo más fácil)
-1. Descarga **`ReciclaIA_v9_limpio.apk`** desde [Releases](https://github.com/AlexCoilaJrt/basurita/releases/latest)
-   en el celular (o pásalo por cable, Drive o WhatsApp).
+1. Desde el celular, toca **[⬇️ Descargar ReciclaIA_v9_limpio.apk](https://github.com/AlexCoilaJrt/basurita/releases/latest/download/ReciclaIA_v9_limpio.apk)**
+   (76 MB; también está en [Releases](https://github.com/AlexCoilaJrt/basurita/releases/latest)).
+   O pásalo al celular por cable, Drive o WhatsApp.
 2. Ábrelo. Android pedirá permitir *"instalar apps de origen desconocido"* para el navegador o el gestor de archivos: acepta.
 3. Abre la app (se llama **Basurita**) y permite el uso de la cámara.
 4. Apunta al residuo dentro del recuadro: con 70 % o más de confianza el recuadro se pinta del color del tacho.
